@@ -17,7 +17,7 @@ class GameState
     std::vector<DisappearingObject> disapObjs;
     std::vector<Item> shopItems;
     std::vector<Weapon> shopWeapons;
-    void renderHUD();
+    void drawHUD();
     void initPrelevelMenu();
     void initNewFloor();
     void initBoss();
@@ -27,7 +27,7 @@ public:
     static constexpr SDL_Color hudBoundaryColor{50, 50, 50, 255};
     static constexpr double hudBoundaryFraction = 0.01;
     int currentFloor;
-    enum class GameStateState{inGame, preLevelMenu, boss};
+    enum class GameStateState{inGame, preLevelMenu};
     std::stack<GameStateState> game_state_state;
     std::vector<SDL_Event> inputEvents;
     std::vector<std::vector<std::shared_ptr<Unit> > > unitPartition;
@@ -46,9 +46,9 @@ public:
     void setPixelsPerTile(int p);
     void initNewGame();
     void operateGameInGame();
-    void renderInGame();
+    void drawInGame();
     void operatePreLevelMenu();
-    void renderPreLevelMenu();
+    void drawPreLevelMenu();
     std::shared_ptr<Player> getPlayer();
 };
 extern GameState currentGame;

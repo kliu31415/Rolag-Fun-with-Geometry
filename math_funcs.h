@@ -3,11 +3,13 @@
 #include <memory>
 #include <initializer_list>
 #include "fundamentals.h"
+const static double EPSILON = 1e-10;
 class GameMap;
 struct Polygon;
 class GeometricObject
 {
     double x, y;
+    double angle; //NOTE: Square and Circle are irrotational and this should not be touched for those objects
 protected:
     GeometricObject() = default;
     GeometricObject(double x, double y);
@@ -21,6 +23,8 @@ public:
     inline double getY() const {return y;}
     inline void setX(double x) {this->x = x;}
     inline void setY(double y) {this->y = y;}
+    inline double getAngle() const {return angle;}
+    inline void setAngle(double angle) {this->angle = angle;}
     double centerDist(const GeometricObject *other) const;
     virtual operator Polygon() const = 0;
 };
@@ -59,7 +63,7 @@ struct Point
 
 class Polygon: public GeometricObject //a polygon consists of a list of vertices and can be rotated
 {
-    double angle, size;
+    double size;
 public:
     static_array<Point> vertices;
     Polygon(double x, double y, std::initializer_list<Point> points);

@@ -10,22 +10,25 @@ bool areEnemies(Affiliation a, Affiliation b, bool recursed)
     return false;
 }
 ///DisappearingObject
-DisappearingObject::DisappearingObject(SDL_Texture *t, int timeLeft, double x, double y)
+DisappearingObject::DisappearingObject(SDL_Texture *t, int timeLeft, double x, double y, double angle)
 {
     this->t = t;
     this->timeLeft = this->maxTime = timeLeft;
     this->x = x;
     this->y = y;
+    this->angle = angle;
 }
-void DisappearingObject::render(const GameState &game_state) const
+void DisappearingObject::draw(const GameState &game_state) const
 {
     int ppt = game_state.getPixelsPerTile();
-    int rx = (x - game_state.game_map.getCameraX())*ppt - ppt/2;
-    int ry = (y - game_state.game_map.getCameraY())*ppt - ppt/2;
+    int rw, rh;
+    SDL_QueryTexture(t, NULL, NULL, &rw, &rh);
+    int rx = (x - game_state.game_map.getCameraX())*ppt - rw * SPRITE_SCALE /2;
+    int ry = (y - game_state.game_map.getCameraY())*ppt - rh * SPRITE_SCALE /2;
     uint8_t origA;
     SDL_GetTextureAlphaMod(t, &origA);
     SDL_SetTextureAlphaMod(t, 255 * timeLeft / maxTime);
-    renderCopy(t, rx, ry, ppt, ppt);
+    renderCopyEx(t, rx, ry, rw, rh, TO_DEG(angle));
     SDL_SetTextureAlphaMod(t, origA);
 }
 void DisappearingObject::update()
@@ -44,7 +47,7 @@ VerticalTextDrawer::VerticalTextDrawer(int x, int y, int h, int maxx)
     this->h = h;
     this->maxx = maxx;
 }
-void VerticalTextDrawer::render(std::string text, Justify justify, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+void VerticalTextDrawer::draw(std::string text, Justify justify, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     int w;
     switch(justify)
@@ -59,10 +62,10 @@ void VerticalTextDrawer::render(std::string text, Justify justify, uint8_t r, ui
     }
     y += h;
 }
-void VerticalTextDrawer::renderOnSameLine(std::string text, Justify justify, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+void VerticalTextDrawer::drawOnSameLine(std::string text, Justify justify, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     y -= h;
-    render(text, justify, r, g, b, a);
+    draw(text, justify, r, g, b, a);
 }
 void VerticalTextDrawer::fillRect(uint8_t r, uint8_t g, uint8_t b, uint8_t a) const
 {

@@ -1,5 +1,6 @@
 #include "game_state.h"
 #include "sdl_base.h"
+#include "math_funcs.h"
 #include <string>
 GameState::GameState(){}
 int GameState::getFloorDisplayW() const
@@ -50,11 +51,6 @@ std::shared_ptr<Player> GameState::getPlayer()
 {
     return player;
 }
-void GameState::initBoss()
-{
-    game_state_state.push(GameStateState::boss);
-
-}
 void GameState::initPrelevelMenu()
 {
     currentFloor++;
@@ -75,14 +71,14 @@ void GameState::initPrelevelMenu()
             }
             x -= GameMap::ITEM_SHOP_SPAWN_WEIGHT[currentFloor][k];
         }
-        if(toAdd.type == -1)
+        if(toAdd.name == -1)
         {
             print_warning("Unable to generate a shop item in this iteration");
         }
         bool alreadyHas = false;
         for(auto &j: shopItems)
         {
-            if(j.type == toAdd.type)
+            if(j.name == toAdd.name)
             {
                 alreadyHas = true;
                 break;
@@ -90,7 +86,7 @@ void GameState::initPrelevelMenu()
         }
         for(auto &j: getPlayer()->items)
         {
-            if(j.type == toAdd.type)
+            if(j.name == toAdd.name)
             {
                 alreadyHas = true;
                 break;
@@ -178,7 +174,7 @@ void GameState::partitionUnits() //1D partitioning should be fine. To optimize f
     unitPartition.resize(game_map.getNumColumns(), std::vector<std::shared_ptr<Unit> >());
     for(auto &i: game_map.units)
     {
-        if(i->getX()+0.5<0 || i->getX()+0.5>game_map.getNumColumns())
+        if(i->getX()+0.5<0 || i->getX()+0.5>=game_map.getNumColumns())
         {
             println("warning: unit column is out of map, not adding to partition vector");
             println(to_str(i->getX()+0.5));
@@ -190,8 +186,11 @@ void GameState::partitionUnits() //1D partitioning should be fine. To optimize f
 }
 void GameState::operateGameInGame()
 {
-    game_map.alreadyCollided.clear(); //the set of the IDs of all unit pairs that have already collided this frame
     auto p = getPlayer();
+    game_map.floorTimeLeft -= 1.0 / BASE_FPS;
+    if(game_map.floorTimeLeft <= 0)
+        Unit::dealDamage(nullptr, p.get(), currentFloor / (double)BASE_FPS);
+    game_map.alreadyCollided.clear(); //the set of the IDs of all unit pairs that have already collided this frame
     getPlayer()->handleInput(*this);
     for(int iter=0; iter<ITER_PER_FRAME; iter++)
     {
@@ -211,19 +210,19 @@ void GameState::operateGameInGame()
                 i--;
             }
         }
-        int playerID = p->ID;
         auto &u = game_map.units;
-        for(int i=0; i<(int)u.size(); i++) //remove all dead units
+        int playerID = p->ID;
+        for(int i=0; i<(int)u.size(); i++) //remove all dead units. note: this only needs to occasionally be done probably, but it's fast so it's staying here.
         {
             if(u[i]->ID!=playerID && u[i]->isDead())
             {
-                disapObjs.emplace_back(u[i]->sprites[u[i]->type], 15, u[i]->getX(), u[i]->getY());
+                disapObjs.emplace_back(u[i]->sprites[u[i]->type], 15, u[i]->getX(), u[i]->getY(), u[i]->getAngle());
                 u.erase(u.begin() + i);
                 i--;
             }
         }
     }
-    if(game_map.units.size() == 1) //level cleared!
+    if(game_map.units.size() == 1) //level cleared! the player is the only unit remaining
     {
         game_state_state.pop();
         initPrelevelMenu();
@@ -238,18 +237,23 @@ void GameState::operateGameInGame()
         }
     }
 }
-void GameState::renderHUD()
+void GameState::drawHUD()
 {
     fillRect(getHudStartX(), 0, getHudW(), getHudH(), hudColor.r, hudColor.g, hudColor.b, hudColor.a);
     fillRect(getFloorDisplayW(), 0, getHudBoundarySize(), getHudH(),
              hudBoundaryColor.r, hudBoundaryColor.g, hudBoundaryColor.b, hudBoundaryColor.a);
     VerticalTextDrawer HUDtext(getHudStartX(), 0, getFontSize(0.5), getWindowW());
-    HUDtext.render("$", VerticalTextDrawer::Justify::left, 0, 170, 0);
-    HUDtext.renderOnSameLine(to_str(getPlayer()->money), VerticalTextDrawer::Justify::right, 0, 255, 0);
-    HUDtext.render("HP", VerticalTextDrawer::Justify::left, 170, 0, 0);
-    HUDtext.renderOnSameLine(to_str((int)getPlayer()->HP) + "/" + to_str((int)getPlayer()->maxHP), VerticalTextDrawer::Justify::right, 255, 0, 0);
+    HUDtext.draw(GameMap::BASE_FLOOR_NAME[currentFloor]);
+    double &ftl = game_map.floorTimeLeft;
+    if(ftl < 10) //not much time remaining!
+        HUDtext.draw(seconds_to_str_no_h(std::max(0, (int)(ftl + 1 - EPSILON))), VerticalTextDrawer::Justify::right, 127.5 * (1 + std::sin(ftl - 10)), 0, 0);
+    else HUDtext.draw(seconds_to_str_no_h(std::max(0, (int)(ftl + 1 - EPSILON))), VerticalTextDrawer::Justify::right);
+    HUDtext.draw("$", VerticalTextDrawer::Justify::left, 0, 170, 0);
+    HUDtext.drawOnSameLine(to_str(getPlayer()->money), VerticalTextDrawer::Justify::right, 0, 255, 0);
+    HUDtext.draw("HP", VerticalTextDrawer::Justify::left, 170, 0, 0);
+    HUDtext.drawOnSameLine(to_str((int)(getPlayer()->HP + 1 - EPSILON)) + "/" + to_str((int)getPlayer()->maxHP), VerticalTextDrawer::Justify::right, 255, 0, 0);
     HUDtext.fillRect(0, 0, 0, 30);
-    HUDtext.render("Weapons");
+    HUDtext.draw("Weapons");
     int cnt = 0;
     auto p = getPlayer();
     for(auto &i: p->weapons)
@@ -260,34 +264,34 @@ void GameState::renderHUD()
         }
         renderCopy(i.sprites[i.type], HUDtext.x, HUDtext.y, HUDtext.h, HUDtext.h);
         if(i.ammo == INF)
-            HUDtext.render("inf", VerticalTextDrawer::Justify::right);
-        else HUDtext.render(to_str(i.ammo), VerticalTextDrawer::Justify::right);
+            HUDtext.draw("inf", VerticalTextDrawer::Justify::right);
+        else HUDtext.draw(to_str(i.ammo), VerticalTextDrawer::Justify::right);
     }
     HUDtext.fillRect(0, 0, 0, 30);
-    HUDtext.render("Items");
+    HUDtext.draw("Items");
     double spriteSize = getHudW() / 4;
     cnt = 0;
     for(auto &i: player->items)
     {
-        renderCopy(Item::sprites[i.type], HUDtext.x + spriteSize * (cnt%4), HUDtext.y + spriteSize * (cnt/4), spriteSize, spriteSize);
+        renderCopy(Item::sprites[(int)i.name], HUDtext.x + spriteSize * (cnt%4), HUDtext.y + spriteSize * (cnt/4), spriteSize, spriteSize);
         cnt++;
     }
 }
-void GameState::renderInGame()
+void GameState::drawInGame()
 {
     game_map.setCameraPosition(getPlayer()->getX() - getFloorDisplayW()/(2.0*getPixelsPerTile()),
                                      getPlayer()->getY() - getFloorDisplayH()/(2.0*getPixelsPerTile()));
     setViewport(0, 0, getFloorDisplayW(), getFloorDisplayH());
-    game_map.render(*this);
+    game_map.draw(*this);
     for(auto &i: game_map.units)
-        i->render(*this);
+        i->draw(*this);
     for(auto &i: game_map.projectiles)
-        i.render(*this);
+        i.draw(*this);
     setViewport(NULL);
-    renderHUD();
-    game_map.renderMinimap(*this);
+    drawHUD();
+    game_map.drawMinimap(*this);
     for(auto &i: disapObjs)
-        i.render(*this);
+        i.draw(*this);
 }
 static const int MENU_W = 4, MENU_H = 4;
 void GameState::operatePreLevelMenu()
@@ -353,15 +357,15 @@ void GameState::operatePreLevelMenu()
                         auto p = getPlayer();
                         if((int)shopItems.size() > menuPos-4)
                         {
-                            int type = shopItems[menuPos-4].type;
-                            if(type == NOT_SET)
+                            Item::Name name = shopItems[menuPos-4].name;
+                            if(name == NOT_SET)
                                 break;
-                            int cost = Item::BASE_COST[type];
+                            int cost = Item::BASE_COST[(int)name];
                             if(p->money >= cost)
                             {
                                 p->money -= cost;
-                                p->items.emplace_back(type);
-                                shopItems[menuPos-4].type = NOT_SET;
+                                p->items.emplace_back(name);
+                                shopItems[menuPos-4].name = (Item::Name)NOT_SET;
                             }
                         }
                     }
@@ -420,7 +424,7 @@ static void getMenuPosRect(GameState &game_state, int pos, int &x, int &y, int &
     x = (pos%MENU_W) * game_state.getFloorDisplayW() / MENU_W; //don't do *= w because ints lose a little accuracy
     y = (pos/MENU_W) * game_state.getFloorDisplayH() * 0.8 / MENU_H; //the bottom 75% is reserved for descriptions
 }
-void GameState::renderPreLevelMenu()
+void GameState::drawPreLevelMenu()
 {
     int &menuPos = prelevelMenuPos;
     renderClear(230, 230, 230);
@@ -432,7 +436,7 @@ void GameState::renderPreLevelMenu()
     pos++;
     for(auto &i: getPlayer()->weapons)
     {
-        if(i.type != 0) //don't render the default weapon
+        if(i.type != 0) //don't draw the default weapon
         {
             getMenuPosRect(*this, pos, x, y, w, h);
             int spriteSize = std::min(h/4, w/4);
@@ -441,9 +445,9 @@ void GameState::renderPreLevelMenu()
             int fontSize = std::min(h/6, (int)(w*0.11));
             drawText("Owned Weapon", x, y, fontSize, 100, 0, 0);
             VerticalTextDrawer weaponText(x, y+spriteSize, fontSize, x+w);
-            weaponText.render(to_str(Weapon::BASE_NAME[i.type]));
-            weaponText.render("Buy Ammo: " + to_str(Weapon::BASE_AMMO_PER_PURCHASE[i.type]) + "/$" + to_str(Weapon::BASE_AMMO_COST[i.type]));
-            weaponText.render("Sell [X]: $" + to_str(Weapon::BASE_COST[i.type]/4));
+            weaponText.draw(to_str(Weapon::BASE_NAME[i.type]));
+            weaponText.draw("Buy Ammo: " + to_str(Weapon::BASE_AMMO_PER_PURCHASE[i.type]) + "/$" + to_str(Weapon::BASE_AMMO_COST[i.type]));
+            weaponText.draw("Sell [X]: $" + to_str(Weapon::BASE_COST[i.type]/4));
             pos++;
         }
     }
@@ -456,18 +460,18 @@ void GameState::renderPreLevelMenu()
     for(auto &i: shopItems)
     {
         getMenuPosRect(*this, pos, x, y, w, h);
-        if(i.type == NOT_SET)
+        if(i.name == Item::None)
             drawText("(EMPTY SHOP ITEM SLOT)", x, y, w/11);
         else
         {
             int spriteSize = std::min(h/4, w/4);
             fillRect(x+w-spriteSize, y+1, spriteSize-1, spriteSize-1, 215, 215, 215);
-            renderCopy(Item::sprites[i.type], x+w-spriteSize, y, spriteSize, spriteSize);
+            renderCopy(Item::sprites[(int)i.name], x+w-spriteSize, y, spriteSize, spriteSize);
             int fontSize = std::min(h/6, (int)(w*0.11));
             drawText("Shop Item", x, y, fontSize, 100, 0, 0);
             VerticalTextDrawer shopItemText(x, y+spriteSize, fontSize, x+w);
-            shopItemText.render(to_str(Item::BASE_NAME[i.type]));
-            shopItemText.render("Buy: $" + to_str(Item::BASE_COST[i.type]));
+            shopItemText.draw(to_str(Item::BASE_NAME[i.name]));
+            shopItemText.draw("Buy: $" + to_str(Item::BASE_COST[i.name]));
         }
         pos++;
     }
@@ -490,8 +494,8 @@ void GameState::renderPreLevelMenu()
             int fontSize = std::min(h/6, (int)(w*0.11));
             drawText("Shop Weapon", x, y, fontSize, 100, 0, 0);
             VerticalTextDrawer shopWeaponText(x, y+spriteSize, fontSize, x+w);
-            shopWeaponText.render(to_str(Weapon::BASE_NAME[i.type]));
-            shopWeaponText.render("Buy: $" + to_str(Weapon::BASE_COST[i.type]));
+            shopWeaponText.draw(to_str(Weapon::BASE_NAME[i.type]));
+            shopWeaponText.draw("Buy: $" + to_str(Weapon::BASE_COST[i.type]));
         }
         pos++;
     }
@@ -521,8 +525,8 @@ void GameState::renderPreLevelMenu()
     case 7:
         if((int)shopItems.size() > menuPos-4)
         {
-            if(shopItems[menuPos-4].type != NOT_SET)
-                drawMultilineText(Item::BASE_DESC[shopItems[menuPos-4].type], 0, maxY, maxX, fsz);
+            if(shopItems[menuPos-4].name != Item::None)
+                drawMultilineText(Item::BASE_DESC[shopItems[menuPos-4].name], 0, maxY, maxX, fsz);
             else drawMultilineText("You already bought this item, so the space appears blank", 0, maxY, maxX, fsz);
         }
         else drawMultilineText("The shop seems to be lacking in items, which is an... unintended feature.", 0, maxY, maxX, fsz);
@@ -556,5 +560,5 @@ void GameState::renderPreLevelMenu()
         drawLine(maxX * i / MENU_W, 0, maxX * i / MENU_W, maxY);
     for(int i=1; i<=MENU_H; i++)
         drawLine(0, maxY * i / MENU_H, maxX, maxY * i / MENU_H);
-    renderHUD();
+    drawHUD();
 }

@@ -11,7 +11,7 @@ class Unit;
 class Weapon
 {
 public:
-    static constexpr int NUM_WEAPONS = 6;
+    static constexpr int NUM_WEAPONS = 7;
 private:
     static int BASE_AMMO[NUM_WEAPONS];
     static double BASE_FIRE_RATE[NUM_WEAPONS], BASE_PROJ_LIFESPAN[NUM_WEAPONS], BASE_DAMAGE[NUM_WEAPONS], BASE_SHOT_SPEED[NUM_WEAPONS];
@@ -19,6 +19,7 @@ private:
     static int BASE_PROJ_PER_SHOT[NUM_WEAPONS];
     static SDL_Texture *wield_sprites[NUM_WEAPONS];
     static int BASE_PROJ_TYPE[NUM_WEAPONS];
+    static bool HAS_SPRITE[NUM_WEAPONS];
     double damage, spread;
     void resetToBaseStats();
 public:
@@ -30,17 +31,18 @@ public:
     int ammo;
     double fireCounter, fireRate;
     static void init();
+    Weapon();
     Weapon(int type);
-    void render(const GameState &game_state, int x, int y, double angle) const;
-    void render_wield(const GameState &game_state, int x, int y, double angle) const;
-    void update(GameState &game_state, std::shared_ptr<Unit> unit, bool fire);
+    void draw(const GameState &game_state, int x, int y, double angle) const;
+    void draw_wield(const GameState &game_state, int x, int y, double angle) const;
+    void update(GameState &game_state, std::shared_ptr<Unit> unit, bool fire, double offset = NOT_SET);
     void resetFireCounter();
     void applyMod(const Item &item);
     void applyMods(const std::vector<Item> &items);
 };
 class Projectile
 {
-    static constexpr int NUM_PROJECTILES = 3;
+    static constexpr int NUM_PROJECTILES = 4;
     static SDL_Texture *sprites[NUM_PROJECTILES];
     static std::string BASE_SHAPE[NUM_PROJECTILES];
     static double BASE_SIZE1[NUM_PROJECTILES];
@@ -59,5 +61,5 @@ public:
     void setY(double);
     bool collide(GameState &game_state);
     void move(GameState &game_state);
-    void render(const GameState &game_state) const;
+    void draw(const GameState &game_state) const;
 };

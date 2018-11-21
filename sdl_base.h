@@ -42,6 +42,10 @@ Converts an integer number of seconds to time in the form H:MM:SS
 */
 std::string seconds_to_str(int t);
 /**
+Converts an integer number of seconds to time in the form M:SS or M:SS
+*/
+std::string seconds_to_str_no_h(int t);
+/**
 Generates a random integer from 0 to RANDUZ_MAX using std::mt19937
 */
 int randuz();

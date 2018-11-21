@@ -211,6 +211,27 @@ std::string seconds_to_str(int t)
     return res;
 }
 /**
+Converts an integer number of seconds to time in the form M:SS
+*/
+std::string seconds_to_str_no_h(int t)
+{
+    int s = t%60;
+    t /= 60;
+    int m = t%60;
+    std::string res;
+    res += to_str(m);
+    res += ":";
+    if(s == 0)
+        res += "00";
+    else if(s < 10)
+    {
+        res += "0";
+        res += to_str(s);
+    }
+    else res += to_str(s);
+    return res;
+}
+/**
 Generates a random integer from 0 to RANDUZ_MAX using std::mt19937
 */
 int randuz()

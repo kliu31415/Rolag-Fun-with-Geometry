@@ -57,6 +57,7 @@ void Player::updateKeyPressTimer(const uint8_t *keystate, int &timer, SDL_Scanco
         weapons[curWeapon].update(game_state, this, isMouseButtonPressed(SDL_BUTTON_LEFT)); //operate weapons
     //updateMinimap(game_state.game_map);
 }*/
+
 void Player::handleInput(GameState &game_state)
 {
     const uint8_t *keystate = SDL_GetKeyboardState(NULL);
@@ -74,19 +75,13 @@ void Player::handleInput(GameState &game_state)
         moveX--;
     if(pressTimer[3]>0 && (pressTimer[2]==0 || pressTimer[3]<pressTimer[2])) //MOVE RIGHT
         moveX++;
-    if(moveX!=0 || moveY!=0)
-    {
-        double mult = getMovementSpeed() / std::hypot(moveX, moveY);
-        moveX *= mult;
-        moveY *= mult;
-    }
     //moveToNewPosition(game_state.game_map, dX, dY);
-    //update weapon ang
-    angle = atan2(getMouseY() - game_state.getFloorDisplayH()/2, getMouseX() - game_state.getFloorDisplayW()/2);
+    //set angle
+    setAngle(atan2(getMouseY() - game_state.getFloorDisplayH()/2, getMouseX() - game_state.getFloorDisplayW()/2));
     //manage weapons
     for(auto &i: game_state.inputEvents)
     {
-        if(i.type == SDL_MOUSEWHEEL)
+        if(i.type == SDL_MOUSEWHEEL && weapons.size() > 1) //you can't cycle if you only have 1 weapon
         {
             auto &w = weapons;
             if(i.wheel.y < 0)
@@ -96,15 +91,17 @@ void Player::handleInput(GameState &game_state)
         }
     }
 }
-void Player::render(const GameState &game_state) const
+void Player::draw(const GameState &game_state) const
 {
     using namespace sdl_settings;
     int ppt = game_state.getPixelsPerTile();
     renderCopy(sprites[type], (game_state.getFloorDisplayW() - ppt)/2, (game_state.getFloorDisplayH() - ppt)/2, ppt, ppt);
     if(!weapons.empty())
     {
-        weapons[curWeapon].render_wield(game_state, game_state.getFloorDisplayW()/2 + ppt*std::cos(angle)/4, game_state.getFloorDisplayH()/2 + ppt*std::sin(angle)/4, angle);
+        double angle = getAngle();
+        weapons[curWeapon].draw_wield(game_state, game_state.getFloorDisplayW()/2 + ppt*std::cos(angle)/4, game_state.getFloorDisplayH()/2 + ppt*std::sin(angle)/4, angle);
     }
+    else print_warning("Player has no weapons");
     if(showHPbar)
     {
         int W = shape->getSize() * ppt;

@@ -16,5 +16,5 @@ public:
     static void init();
     void moveToNewPosition(GameMap &game_map, double dX, double dY);
     void handleInput(GameState &game_state);
-    void render(const GameState &game_state) const;
+    void draw(const GameState &game_state) const;
 };

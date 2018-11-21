@@ -29,11 +29,11 @@ void handle_global_game_state_in_game(GameState &game_state)
     {
     case GameState::GameStateState::inGame:
         game_state.operateGameInGame();
-        game_state.renderInGame();
+        game_state.drawInGame();
         break;
     case GameState::GameStateState::preLevelMenu:
         game_state.operatePreLevelMenu();
-        game_state.renderPreLevelMenu();
+        game_state.drawPreLevelMenu();
         break;
     }
     updateScreen();

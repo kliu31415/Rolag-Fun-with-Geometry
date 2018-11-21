@@ -6,6 +6,10 @@
 #include <algorithm>
 void normToHypot(double &x, double &y, double z)
 {
+    if(std::fabs(x) < EPSILON) //the issue here is that x / h may equal inf. If moveX = inf, then units move off the map. Only happens in Debug build.
+        x = 0;
+    if(std::fabs(y) < EPSILON)
+        y = 0;
     double h = std::hypot(x, y);
     if(h == 0)
     {
@@ -19,6 +23,7 @@ void normToHypot(double &x, double &y, double z)
 //general geometric object
 GeometricObject::GeometricObject(double x, double y)
 {
+    angle = 0;
     this->x = x;
     this->y = y;
 }
@@ -29,14 +34,14 @@ double GeometricObject::centerDist(const GeometricObject *other) const
 bool GeometricObject::collidesWithTerrain(const GameMap &game_map) const
 {
     static Square tile(0, 0, 1); //this should work
-    double sz = getSize();
-    int minx = getX() - sz, maxx = getX() + sz + 0.5;
-    int miny = getY() - sz, maxy = getY() + sz + 0.5;
+    double sz = getSize() / 2;
+    int minx = getX() - sz - 0.5, maxx = getX() + sz + 0.5;
+    int miny = getY() - sz - 0.5, maxy = getY() + sz + 0.5;
     for(int i=minx; i<=maxx; i++)
     {
         for(int j=miny; j<=maxy; j++)
         {
-            if(!game_map.isPassableTile(i, j))
+            if(!game_map.isPassableTile(i, j) && square(i - getX()) + square(j - getY()) < sz + std::sqrt(2))
             {
                 tile.setX(i);
                 tile.setY(j);
@@ -182,27 +187,27 @@ bool Square::collidesWith(const GeometricObject *other) const
 Polygon::Polygon(int numVertices)
 {
     type = Type::polygon;
-    angle = 0;
+    setAngle(0);
     vertices = static_array<Point>(numVertices);
 }
 Polygon::Polygon(double x, double y, std::initializer_list<Point> points): GeometricObject(x, y)
 {
     type = Type::polygon;
-    angle = 0;
+    setAngle(0);
     vertices.getDeepCopy(points);
     computeSize();
 }
 Polygon::Polygon(double x, double y, static_array<Point> &points): GeometricObject(x, y)
 {
     type = Type::polygon;
-    angle = 0;
+    setAngle(0);
     vertices.getDeepCopy(points);
     computeSize();
 }
 Polygon::Polygon(const Polygon &other): GeometricObject(other.getX(), other.getY())
 {
     type = Type::polygon;
-    angle = 0;
+    setAngle(0);
     setX(other.getX());
     setY(other.getY());
     vertices.getDeepCopy(other.vertices);
@@ -240,15 +245,21 @@ static inline double cp(double x1, double y1, double x2, double y2)
 {
     return x1 * y2 - x2 * y1;
 }
-static inline bool segmentsIntersect(Point &a1, Point &a2, Point &b1, Point &b2)
+//WARNING: MAY BE UNPORTABLE!!
+#define TO_ULL(x) (*reinterpret_cast<unsigned long long*>(&x))
+static inline bool segmentsIntersect(Point a1, Point a2, Point b1, Point b2)
 {
     //points are implicitly converted to 2D geometric vectors
     //might not work for some edge cases that can probably be ignored because they will have a minimal effect due to the nature of floating points
-    auto v1 = cp(a1.x - b1.x, a1.y - b1.y, b2.x - a1.x, b2.y - a1.y);
-    auto v2 = cp(b2.x - a1.x, b2.y - a1.y, a2.x - b2.x, a2.y - b2.y);
-    auto v3 = cp(a2.x - b2.x, a2.y - b2.y, b1.x - a2.x, b1.y - a2.y);
-    auto v4 = cp(b1.x - a2.x, b1.y - a2.y, a1.x - b1.x, a1.y - b1.y);
-    return (v1>0 && v2>0 && v3>0 && v4>0) || (v1<0 && v2<0 && v3<0 && v4<0);
+    double x1 = a1.x - b1.x, x2 = b2.x - a1.x, x3 = a2.x - b2.x, x4 = b1.x - a2.x;
+    double y1 = a1.y - b1.y, y2 = b2.y - a1.y, y3 = a2.y - b2.y, y4 = b1.y - a2.y;
+    //return sign(cp(x1, y1, x2, y2)) == sign(cp(x3, y3, x4, y4)) && sign(cp(x2, y2, x3, y3)) == sign(cp(x4, y4, x1, y1));
+    double c1 = cp(x1, y1, x2, y2);
+    double c2 = cp(x3, y3, x4, y4);
+    double c3 = cp(x2, y2, x3, y3);
+    double c4 = cp(x4, y4, x1, y1);
+    //return sign(c1)==sign(c2) && sign(c3)==sign(c4);
+    return ((1ull<<63) & ((TO_ULL(c1) ^ ~TO_ULL(c2)) & (TO_ULL(c3) ^ ~TO_ULL(c4))));
 }
 bool Polygon::collidesWithPolygon(const Polygon &other) const
 {
@@ -256,19 +267,19 @@ bool Polygon::collidesWithPolygon(const Polygon &other) const
     static static_array<Point> v1(11), v2(11); //allocating it every time would be costly. Assume that no polygon has more than 10 vertices.
     for(size_t i=0; i<vertices.size(); i++) //vertices.get() is used as a read only operation to access a Point
     {
-        v1[i] = vertices.get(i).getPos(getX(), getY(), angle);
+        v1[i] = vertices.get(i).getPos(getX(), getY(), getAngle());
     }
-    v1[vertices.size()] = v1[0];
+    v1[vertices.size()] = v1.get(0);
     for(size_t i=0; i<other.vertices.size(); i++)
     {
-        v2[i] = other.vertices.get(i).getPos(other.getX(), other.getY(), other.angle);
+        v2[i] = other.vertices.get(i).getPos(other.getX(), other.getY(), other.getAngle());
     }
-    v2[other.vertices.size()] = v2[0];
+    v2[other.vertices.size()] = v2.get(0);
     for(size_t i=0; i<vertices.size(); i++) //they intersect if any pair of edges intersect
     {
         for(size_t j=0; j<other.vertices.size(); j++)
         {
-            if(segmentsIntersect(v1[i], v1[i+1], v2[j], v2[j+1]))
+            if(segmentsIntersect(v1.get(i), v1.get(i+1), v2.get(j), v2.get(j+1)))
             {
                 /*cout << v1[i].x << " " << v1[i].y << " " << v1[i+1].x << " " << v1[i+1].y << endl;
                 cout << v2[j].x << " " << v2[j].y << " " << v2[j+1].x << " " << v2[j+1].y << endl;
@@ -277,13 +288,14 @@ bool Polygon::collidesWithPolygon(const Polygon &other) const
             }
         }
     }
+    return false;
     //also check if one is inside the other with ray tracing
     int intersectionCount = 0;
-    Point a = v2[0];
+    Point a = v2.get(0);
     Point b(a.x + 1e9, a.y + 1); //the slope of 1e-9 makes it probable that they ray won't cross any vertices
     for(size_t i=0; i<vertices.size(); i++)
     {
-        if(segmentsIntersect(a, b, v1[i], v1[i+1]))
+        if(segmentsIntersect(a, b, v1.get(i), v1.get(i+1)))
             intersectionCount++;
     }
     return intersectionCount%2 == 1;

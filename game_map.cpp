@@ -10,6 +10,8 @@
 #include <queue>
 #include "game_state.h"
 SDL_Texture *GameMap::dirt_sprites[NUM_DIRT_SPRITES], *GameMap::wall_sprites[NUM_WALL_SPRITES];
+int GameMap::BASE_FLOOR_TIME[GameMap::NUM_FLOORS];
+std::string GameMap::BASE_FLOOR_NAME[GameMap::NUM_FLOORS];
 double GameMap::UNIT_SPAWN_WEIGHT[GameMap::NUM_FLOORS][Unit::NUM_UNITS];
 double GameMap::UNIT_SPAWN_CHANCE[GameMap::NUM_FLOORS], GameMap::TOTAL_UNIT_SPAWN_WEIGHT[GameMap::NUM_FLOORS];
 double GameMap::TOTAL_ITEM_SHOP_SPAWN_WEIGHT[GameMap::NUM_FLOORS], GameMap::ITEM_SHOP_SPAWN_WEIGHT[GameMap::NUM_FLOORS][Item::NUM_ITEMS];
@@ -20,8 +22,21 @@ GameMap::GameMap(GameState &game_state)
     this->floor = game_state.currentFloor;
     minimap_texture = NULL;
     //explored_texture = NULL;
-    generateFloor(game_state);
+    generateFloor();
     generateMinimapTexture(game_state);
+    double xFloorTimeLeft = 1;
+    for(auto &i: game_state.getPlayer()->items)
+    {
+        switch(i.name)
+        {
+        case Item::Name::DaltonsAtom: //dalton's atom
+            xFloorTimeLeft += 0.1;
+            break;
+        default:
+            break;
+        }
+    }
+    this->floorTimeLeft = BASE_FLOOR_TIME[floor] * xFloorTimeLeft;
     //generateShortestPaths(); buggy and computationally expensive and time consuming to make a good one
 }
 void GameMap::endFloor()
@@ -97,22 +112,6 @@ void GameMap::setMapSize(int columns, int rows)
     tiles.clear();
     tiles.resize(columns, std::vector<MapTile>(rows, MapTile::not_set));
 }
-struct generateRandZ
-{
-    typedef size_t result_type;
-    static size_t min()
-    {
-        return 0;
-    }
-    static size_t max()
-    {
-        return RANDUZ_MAX;
-    }
-    size_t operator()()
-    {
-        return randuz();
-    }
-};
 /*void GameMap::generateShortestPaths()
 {
     if(shortestPathDir.size() != 0)
@@ -218,6 +217,22 @@ struct generateRandZ
         }
     }
 }*/
+struct generateRandZ
+{
+    typedef size_t result_type;
+    static size_t min()
+    {
+        return 0;
+    }
+    static size_t max()
+    {
+        return RANDUZ_MAX;
+    }
+    size_t operator()()
+    {
+        return randuz();
+    }
+};
 void GameMap::generateFloorGeneric(int numClusters, double fillFactor)
 {
     if(numClusters > getArea())
@@ -349,6 +364,8 @@ void GameMap::generateFloorGeneric(int numClusters, double fillFactor)
                     if(x < UNIT_SPAWN_WEIGHT[floor][k])
                     {
                         std::shared_ptr<Unit> unit = std::make_shared<Unit>(k, Affiliation::generic_enemy, i, j);
+                        if(unit->collidesWithTerrain(*this) || unit->collidesWithOtherUnit_checkToValidateMap(units))
+                            break;
                         units.push_back(unit);
                         break;
                     }
@@ -399,7 +416,11 @@ void GameMap::generateMapFloor1()
     setMapSize(50, 40);
     generateFloorGeneric(20, 0.5);
 }
-void GameMap::generateFloor(GameState &game_state)
+void GameMap::generateMapFloor2()
+{
+
+}
+void GameMap::generateFloor()
 {
     println("Generating a map for floor " + to_str(floor));
     int tries = 0;
@@ -409,8 +430,11 @@ void GameMap::generateFloor(GameState &game_state)
         tries++;
         switch(floor)
         {
-        case 1:
+        case 1: //Red Room
             generateMapFloor1();
+            break;
+        case 2: //Red Room Boss
+            generateMapFloor2();
             break;
         default:
             print_error("cannot create map for unknown floor " + to_str(floor));
@@ -420,7 +444,7 @@ void GameMap::generateFloor(GameState &game_state)
     while(!isValidFloor());
     println("Took " + to_str(tries) + " attempt(s) to generate a valid floor");
 }
-void GameMap::render(const GameState &game_state) const
+void GameMap::draw(const GameState &game_state) const
 {
     fillRect(0, 0, game_state.getFloorDisplayW(), game_state.getFloorDisplayH(), 0, 0, 0);
     int ppt = game_state.getPixelsPerTile();
@@ -527,7 +551,7 @@ void GameMap::generateMinimapTexture(const GameState &game_state)
     }
     SDL_SetRenderTarget(getRenderer(), NULL);
 }
-void GameMap::renderMinimap(GameState &game_state) const
+void GameMap::drawMinimap(GameState &game_state) const
 {
     int x, y, w, h;
     getMinimapRect(game_state, &x, &y, &w, &h);
@@ -535,8 +559,15 @@ void GameMap::renderMinimap(GameState &game_state) const
     fillRect(game_state.getHudStartX(), origY, game_state.getHudW(), getWindowH() - origY, 100, 100, 100);
     renderCopy(minimap_texture, x, y, w, h);
     double eppt = game_state.game_map.getMinimapPixelsPerTile();
+    double scale = SPRITE_SCALE * eppt / game_state.getPixelsPerTile();
     for(auto &i: units)
-        renderCopy(Unit::sprites[i->type], x + eppt * i->getX(), y + eppt * i->getY(), eppt, eppt);
+    {
+        int rw, rh;
+        SDL_QueryTexture(Unit::sprites[i->type], NULL, NULL, &rw, &rh);
+        if(!i->isPlayer())
+            renderCopyEx(Unit::sprites[i->type], x + eppt * i->getX() - rw * scale / 2 + eppt/2, y + eppt * i->getY() - rh * scale / 2 + eppt/2,
+                         rw * scale, rh * scale, TO_DEG(i->getAngle()));
+    }
     //renderCopy(explored_texture, x, y, w, h);
     fillRect(x + eppt*game_state.getPlayer()->getX(), y + eppt*game_state.getPlayer()->getY(), eppt, eppt, 255, 255, 255);
 }

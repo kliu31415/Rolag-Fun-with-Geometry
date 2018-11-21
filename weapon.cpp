@@ -14,6 +14,11 @@ int Weapon::BASE_AMMO_PER_PURCHASE[Weapon::NUM_WEAPONS], Weapon::BASE_AMMO_COST[
 int Weapon::BASE_COST[Weapon::NUM_WEAPONS], Weapon::BASE_PROJ_PER_SHOT[Weapon::NUM_WEAPONS];
 std::string Weapon::BASE_NAME[Weapon::NUM_WEAPONS], Weapon::BASE_DESC[Weapon::NUM_WEAPONS];
 double Weapon::BASE_FIRERATE_IRREGULARITY[Weapon::NUM_WEAPONS];
+bool Weapon::HAS_SPRITE[Weapon::NUM_WEAPONS];
+Weapon::Weapon()
+{
+    this->type = NOT_SET;
+}
 Weapon::Weapon(int type)
 {
     this->type = type;
@@ -29,18 +34,24 @@ void Weapon::resetToBaseStats()
 }
 void Weapon::applyMod(const Item &item)
 {
-    double xAccuracy = 1, xDamage = 1;
-    switch(item.type)
+    double xAccuracy = 1, xDamage = 1, dFireRate = 1;
+    switch(item.name)
     {
-    case 1: //Bullseye
+    case Item::Name::Bullseye:
         xAccuracy += 0.4;
         break;
-    case 5: //Sadist's Machete
+    case Item::Name::SadistsMachete:
         xDamage += 1.05;
+        break;
+    case Item::Name::RedGloves:
+        dFireRate += 0.1;
+        break;
+    default:
         break;
     }
     spread /= xAccuracy;
     damage *= xDamage;
+    fireRate /= dFireRate;
 }
 void Weapon::applyMods(const std::vector<Item> &items)
 {
@@ -48,17 +59,20 @@ void Weapon::applyMods(const std::vector<Item> &items)
     for(auto &i: items)
         applyMod(i);
 }
-void Weapon::render(const GameState &game_state, int x, int y, double angle) const
+void Weapon::draw(const GameState &game_state, int x, int y, double angle) const
 {
-    int ppt = game_state.getPixelsPerTile();
-    renderCopyEx(sprites[type], x-ppt/2, y-ppt/2, ppt, ppt, TO_DEG(angle));
+    if(HAS_SPRITE[type])
+    {
+        int ppt = game_state.getPixelsPerTile();
+        renderCopyEx(sprites[type], x-ppt/2, y-ppt/2, ppt, ppt, TO_DEG(angle));
+    }
 }
-void Weapon::render_wield(const GameState &game_state, int x, int y, double angle) const
+void Weapon::draw_wield(const GameState &game_state, int x, int y, double angle) const
 {
     int ppt = game_state.getPixelsPerTile();
     renderCopyEx(wield_sprites[type], x-ppt, y-ppt, ppt*2, ppt*2, TO_DEG(angle));
 }
-void Weapon::update(GameState &game_state, std::shared_ptr<Unit> unit, bool fire)
+void Weapon::update(GameState &game_state, std::shared_ptr<Unit> unit, bool fire, double offset /*=NOT_SET*/)
 {
     fireCounter -= 1.0 / ITER_PER_FRAME;
     if(fire && fireCounter<=0 && ammo>0)
@@ -68,11 +82,12 @@ void Weapon::update(GameState &game_state, std::shared_ptr<Unit> unit, bool fire
         fireCounter = fireRate * (1 + randf() * BASE_FIRERATE_IRREGULARITY[type]);
         for(int iter=0; iter<BASE_PROJ_PER_SHOT[type]; iter++)
         {
-            double projAngle = unit->angle + spread * (1 - 2*randf());
+            double projAngle = unit->getAngle() + spread * (1 - 2*randf());
             double dX = BASE_SHOT_SPEED[type] * std::cos(projAngle);
             double dY = BASE_SHOT_SPEED[type] * std::sin(projAngle);
             double norm = std::hypot(dX, dY);
-            double offset = unit->shape->getSize() * 0.8;
+            if(offset == NOT_SET)
+                offset = unit->shape->getSize() * 0.8;
             double initX = unit->getX() + dX * offset / norm;
             double initY = unit->getY() + dY * offset / norm;
             game_state.game_map.projectiles.emplace_back(unit->affiliation, BASE_PROJ_TYPE[type], unit, damage, initX, initY, dX + unit->moveX*0.5,
@@ -89,23 +104,6 @@ void Weapon::resetFireCounter()
 SDL_Texture *Projectile::sprites[NUM_PROJECTILES];
 std::string Projectile::BASE_SHAPE[NUM_PROJECTILES];
 double Projectile::BASE_SIZE1[NUM_PROJECTILES];
-void Projectile::init()
-{
-    for(int i=0; i<NUM_PROJECTILES; i++)
-        sprites[i] = loadTexture(("data/projectile/" + to_str(i) + ".png").c_str(), 255, 255, 255);
-    //bullet
-    int cur = 0;
-    BASE_SHAPE[cur] = "circle";
-    BASE_SIZE1[cur] = 0.15;
-    //arrow
-    cur = 1;
-    BASE_SHAPE[cur] = "circle";
-    BASE_SIZE1[cur] = 0.35;
-    //colorful bullet
-    cur = 2;
-    BASE_SHAPE[cur] = "circle";
-    BASE_SIZE1[cur] = 0.15;
-}
 Projectile::Projectile(Affiliation affiliation, int type, std::shared_ptr<Unit> owner, double damage, double x, double y, double dX, double dY, double timeTillExpiration, double angle)
 {
     this->affiliation = affiliation;
@@ -170,7 +168,7 @@ void Projectile::move(GameState &game_state)
     setY(getY() + dY / ITER_PER_FRAME);
     timeTillExpiration -= 1.0 / ITER_PER_FRAME;
 }
-void Projectile::render(const GameState &game_state) const
+void Projectile::draw(const GameState &game_state) const
 {
     int ppt = game_state.getPixelsPerTile();
     int rx = (getX() - game_state.game_map.getCameraX())*ppt - ppt/2;
