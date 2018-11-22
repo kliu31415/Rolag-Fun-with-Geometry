@@ -91,7 +91,7 @@ void Player::handleInput(GameState &game_state)
         }
     }
 }
-void Player::draw(const GameState &game_state) const
+/*void Player::draw(const GameState &game_state) const
 {
     using namespace sdl_settings;
     int ppt = game_state.getPixelsPerTile();
@@ -104,7 +104,7 @@ void Player::draw(const GameState &game_state) const
     else print_warning("Player has no weapons");
     if(showHPbar)
     {
-        int W = shape->getSize() * ppt;
+        int W = shape->getRadius()*1.4 * ppt;
         int H = W * 0.2;
         int X = (getX() - game_state.game_map.getCameraX()) * ppt - W/2;
         int Y = (getY() - game_state.game_map.getCameraY()) * ppt - W*0.55 - H;
@@ -113,4 +113,4 @@ void Player::draw(const GameState &game_state) const
         fillRect(X + hpPercent*W, Y, (1 - hpPercent)*W, H, 255, 0, 0, 150);
         drawRect(X, Y, W, H, 0, 0, 0);
     }
-}
+}*/

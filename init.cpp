@@ -10,22 +10,24 @@ void GameMap::init()
     for(int i=0; i<NUM_WALL_SPRITES; i++)
         wall_sprites[i] = loadTexture(("data/wall_" + to_str(i) + ".png").c_str(), 255, 255, 255);
     //floors
-    BASE_FLOOR_TIME[1] = 120;
+    BASE_FLOOR_TIME[1] = 90;
     BASE_FLOOR_NAME[1] = "Red Room";
+    UNIT_SPAWN_CHANCE[1] = 0.06;
+    FLOOR_W[1] = 35;
+    FLOOR_H[1] = 25;
     //floors
     BASE_FLOOR_TIME[2] = 60;
-    BASE_FLOOR_NAME[2] = "Red Room Boss";
+    BASE_FLOOR_NAME[2] = "Red Room";
     //units
     for(auto &i: UNIT_SPAWN_WEIGHT)
         for(auto &j: i)
             j = 0;
-    UNIT_SPAWN_CHANCE[1] = 0.04;
     UNIT_SPAWN_WEIGHT[1][1] = 1;
     UNIT_SPAWN_WEIGHT[1][2] = 0.3;
     UNIT_SPAWN_WEIGHT[1][3] = 0.2;
-    UNIT_SPAWN_WEIGHT[1][4] = 0.1;
+    UNIT_SPAWN_WEIGHT[1][4] = 0.5;
     UNIT_SPAWN_WEIGHT[1][5] = 0.8;
-    UNIT_SPAWN_WEIGHT[1][6] = 2;
+    UNIT_SPAWN_WEIGHT[1][6] = 0.4;
     for(int i=0; i<NUM_FLOORS; i++)
     {
         TOTAL_UNIT_SPAWN_WEIGHT[i] = 0;
@@ -59,7 +61,15 @@ void GameMap::init()
             TOTAL_WEAPON_SHOP_SPAWN_WEIGHT[i] += WEAPON_SHOP_SPAWN_WEIGHT[i][j];
     }
 }
-
+void foo(GameState &game_state, std::shared_ptr<Unit> unit, double dX, double dY, double dAngle)
+    {
+        //cout << "lambda " << dX << endl;
+        if(randf() < dX)
+        {
+            //cout << "lambda2 " << dX << endl;
+            Projectile::create(game_state, unit, 3, 3.312, 5.57, randf() * 2 * PI, INF);
+        }
+    }
 void Unit::init()
 {
     for(int i=0; i<NUM_UNITS; i++)
@@ -70,59 +80,68 @@ void Unit::init()
         i = RotationBehavior::none;
     for(auto &i: BASE_WEAPON) //units don't have weapons by default
         i = NOT_SET;
-    //player
+    for(auto &i: BASE_IS_SPECTRAL) //things aren't spectral by default
+        i = false;
+    for(auto &i: BASE_OTHER_BEHAVIOR) //units don't have other behavior by defuaelt
+        i = nullptr;
+    //
     int cur = 0;
+    BASE_NAME[cur] = "player";
     BASE_WEAPON_BEHAVIOR[cur] = WeaponBehavior::player;
-    BASE_HP[cur] = 500;
-    BASE_MOVEMENT_SPEED[cur] = 0.1;
+    BASE_HP[cur] = 50;
+    BASE_MOVEMENT_SPEED[cur] = 6;
     BASE_SHAPE[cur] = GeometricObject::Type::square;
     BASE_SIZE1[cur] = 0.8;
-    BASE_VISION_DISTANCE[cur] = 7;
-    BASE_IS_SPECTRAL[cur] = false;
     BASE_MOVEMENT_BEHAVIOR[cur] = MovementBehavior::player;
-    BASE_DAMAGE_ON_COLLISION[cur] = 0.3;
-    //red square
+    BASE_DAMAGE_ON_COLLISION[cur] = 20;
+    BASE_PROJECTILE_OFFSET[cur] = 0.78;
+    //
     cur = 1;
+    BASE_NAME[cur] = "red square";
     BASE_HP[cur] = 10;
-    BASE_MOVEMENT_SPEED[cur] = 0.04;
+    BASE_MOVEMENT_SPEED[cur] = 3.5;
     BASE_SHAPE[cur] = GeometricObject::Type::square;
     BASE_SIZE1[cur] = 0.8;
     BASE_MOVEMENT_BEHAVIOR[cur] = MovementBehavior::random;
-    BASE_IS_SPECTRAL[cur] = false;
-    BASE_DAMAGE_ON_COLLISION[cur] = 0.3;
-    //yellow square
+    BASE_DAMAGE_ON_COLLISION[cur] = 20;
+    BASE_MONEY_REWARD[cur] = 7;
+    //
     cur = 2;
+    BASE_NAME[cur] = "yellow square";
     BASE_HP[cur] = 7;
-    BASE_MOVEMENT_SPEED[cur] = 0.05;
+    BASE_MOVEMENT_SPEED[cur] = 3.8;
     BASE_SHAPE[cur] = GeometricObject::Type::square;
     BASE_SIZE1[cur] = 0.8;
     BASE_VISION_DISTANCE[cur] = 7;
     BASE_MOVEMENT_BEHAVIOR[cur] = MovementBehavior::homing_simple;
-    BASE_IS_SPECTRAL[cur] = false;
-    BASE_DAMAGE_ON_COLLISION[cur] = 0.2;
-    //green square
+    BASE_DAMAGE_ON_COLLISION[cur] = 15;
+    BASE_MONEY_REWARD[cur] = 9.5;
+    //
     cur = 3;
+    BASE_NAME[cur] = "green square";
     BASE_HP[cur] = 12;
-    BASE_MOVEMENT_SPEED[cur] = 0.03;
+    BASE_MOVEMENT_SPEED[cur] = 4.6;
     BASE_SHAPE[cur] = GeometricObject::Type::square;
     BASE_SIZE1[cur] = 0.8;
     BASE_VISION_DISTANCE[cur] = 7;
     BASE_MOVEMENT_BEHAVIOR[cur] = MovementBehavior::homing_erratic;
-    BASE_IS_SPECTRAL[cur] = false;
-    BASE_DAMAGE_ON_COLLISION[cur] = 0.25;
-    //orange square
+    BASE_DAMAGE_ON_COLLISION[cur] = 25;
+    BASE_MONEY_REWARD[cur] = 12;
+    //
     cur = 4;
+    BASE_NAME[cur] = "orange square";
     BASE_HP[cur] = 5;
-    BASE_MOVEMENT_SPEED[cur] = 0.08;
+    BASE_MOVEMENT_SPEED[cur] = 5.1;
     BASE_SHAPE[cur] = GeometricObject::Type::square;
     BASE_SIZE1[cur] = 0.8;
     BASE_MOVEMENT_BEHAVIOR[cur] = MovementBehavior::cardinal;
-    BASE_IS_SPECTRAL[cur] = false;
-    BASE_DAMAGE_ON_COLLISION[cur] = 0.25;
-    //red T tetromino
+    BASE_DAMAGE_ON_COLLISION[cur] = 14;
+    BASE_MONEY_REWARD[cur] = 11;
+    //
     cur = 5;
+    BASE_NAME[cur] = "red T";
     BASE_HP[cur] = 5;
-    BASE_MOVEMENT_SPEED[cur] = 0.08;
+    BASE_MOVEMENT_SPEED[cur] = 4.5;
     BASE_SHAPE[cur] = GeometricObject::Type::polygon;
     BASE_VERTICES[cur] = static_array<Point>(8);
     BASE_VERTICES[cur][0] = Point(0.01, -0.14);
@@ -134,17 +153,18 @@ void Unit::init()
     BASE_VERTICES[cur][6] = Point(0.32, 0.13);
     BASE_VERTICES[cur][7] = Point(0.32, -0.14);
     BASE_MOVEMENT_BEHAVIOR[cur] = MovementBehavior::bouncy;
-    BASE_IS_SPECTRAL[cur] = false;
-    BASE_DAMAGE_ON_COLLISION[cur] = 0.25;
+    BASE_DAMAGE_ON_COLLISION[cur] = 13;
     BASE_ROTATION_BEHAVIOR[cur] = RotationBehavior::constant;
-    BASE_ROTATION_VAR1[cur] = 0.05; // radians/frame ccw rotation
+    BASE_ROTATION_FUNC[cur] = [](double t)-> double {return 3.5;}; // radians/s ccw rotation
     BASE_WEAPON[cur] = 6;
     BASE_WEAPON_BEHAVIOR[cur] = WeaponBehavior::same_angle;
-    BASE_PROJECTILE_OFFSET[cur] = 0.4;
-    //red 4-pointed star
+    BASE_PROJECTILE_OFFSET[cur] = 0.33;
+    BASE_MONEY_REWARD[cur] = 10.3;
+    //
     cur = 6;
+    BASE_NAME[cur] = "red 4-star";
     BASE_HP[cur] = 70;
-    BASE_MOVEMENT_SPEED[cur] = 0.05;
+    BASE_MOVEMENT_SPEED[cur] = 3.2;
     BASE_SHAPE[cur] = GeometricObject::Type::polygon;
     BASE_VERTICES[cur] = static_array<Point>(8);
     BASE_VERTICES[cur][0] = Point(0.01, -0.93);
@@ -155,12 +175,40 @@ void Unit::init()
     BASE_VERTICES[cur][5] = Point(-0.24, 0.24);
     BASE_VERTICES[cur][6] = Point(-0.93, 0.01);
     BASE_VERTICES[cur][7] = Point(-0.23, -0.23);
-    BASE_VISION_DISTANCE[cur] = 6;
     BASE_MOVEMENT_BEHAVIOR[cur] = MovementBehavior::bouncy;
-    BASE_IS_SPECTRAL[cur] = false;
-    BASE_DAMAGE_ON_COLLISION[cur] = 0.25;
+    BASE_DAMAGE_ON_COLLISION[cur] = 23;
     BASE_ROTATION_BEHAVIOR[cur] = RotationBehavior::constant_bidirectional;
-    BASE_ROTATION_VAR1[cur] = 0.051; // radians/frame ccw rotation
+    BASE_ROTATION_FUNC[cur] = [](double t)-> double {return 3.1;}; // radians/s ccw rotation
+    BASE_MONEY_REWARD[cur] = 26;
+    //
+    cur = 7;
+    BASE_NAME[cur] = "red 5-star";
+    BASE_HP[cur] = 240;
+    BASE_MOVEMENT_SPEED[cur] = 3.1;
+    BASE_SHAPE[cur] = GeometricObject::Type::polygon;
+    BASE_VERTICES[cur] = static_array<Point>(10);
+    BASE_VERTICES[cur][0] = Point(0.01, -1.69);
+    BASE_VERTICES[cur][1] = Point(0.42, -0.40);
+    BASE_VERTICES[cur][2] = Point(1.71, -0.37);
+    BASE_VERTICES[cur][3] = Point(0.70, 0.41);
+    BASE_VERTICES[cur][4] = Point(1.06, 1.71);
+    BASE_VERTICES[cur][5] = Point(0.01, 0.97);
+    BASE_VERTICES[cur][6] = Point(-1.05, 1.71);
+    BASE_VERTICES[cur][7] = Point(-0.68, 0.41);
+    BASE_VERTICES[cur][8] = Point(-1.7, -0.37);
+    BASE_VERTICES[cur][9] = Point(-0.4, -0.4);
+    BASE_MOVEMENT_BEHAVIOR[cur] = MovementBehavior::bouncy;
+    BASE_DAMAGE_ON_COLLISION[cur] = 35;
+    BASE_ROTATION_BEHAVIOR[cur] = RotationBehavior::constant_bidirectional;
+    BASE_ROTATION_FUNC[cur] = [](double t)-> double {return 4.8 * std::pow(std::sin(t * 6 / (2*PI)), 2);};
+    BASE_MONEY_REWARD[cur] = 85;
+    BASE_OTHER_BEHAVIOR[cur] = [](GameState &game_state, const std::shared_ptr<Unit> &unit, double dX, double dY, double dAngle) -> void
+    {
+        if(0.02 * (4.8*4.8 - square(dAngle)) * randf() < TICK_SPEED)
+        {
+            Projectile::create(game_state, unit, 3, 3.312, 5.57, randf() * 2 * PI, INF);
+        }
+    };
 }
 void Weapon::init()
 {
@@ -182,8 +230,8 @@ void Weapon::init()
     BASE_PROJ_TYPE[cur] = 0;
     BASE_AMMO[cur] = INF;
     BASE_DAMAGE[cur] = 4;
-    BASE_FIRE_RATE[cur] = 35;
-    BASE_SHOT_SPEED[cur] = 0.16;
+    BASE_FIRE_RATE[cur] = 0.55;
+    BASE_SHOT_SPEED[cur] = 9;
     BASE_PROJ_LIFESPAN[cur] = 30;
     BASE_SPREAD[cur] = 0.25;
     //
@@ -193,8 +241,8 @@ void Weapon::init()
     BASE_COST[cur] = 0;
     BASE_PROJ_TYPE[cur] = 1;
     BASE_DAMAGE[cur] = 6;
-    BASE_FIRE_RATE[cur] = 31;
-    BASE_SHOT_SPEED[cur] = 0.18;
+    BASE_FIRE_RATE[cur] = 0.61;
+    BASE_SHOT_SPEED[cur] = 10;
     BASE_PROJ_LIFESPAN[cur] = 26;
     BASE_AMMO_PER_PURCHASE[cur] = 30;
     BASE_AMMO_COST[cur] = 10;
@@ -206,8 +254,8 @@ void Weapon::init()
     BASE_COST[cur] = 80;
     BASE_PROJ_TYPE[cur] = 1;
     BASE_DAMAGE[cur] = 8;
-    BASE_FIRE_RATE[cur] = 42;
-    BASE_SHOT_SPEED[cur] = 0.23;
+    BASE_FIRE_RATE[cur] = 0.71;
+    BASE_SHOT_SPEED[cur] = 12.5;
     BASE_PROJ_LIFESPAN[cur] = 32;
     BASE_AMMO_PER_PURCHASE[cur] = 25;
     BASE_AMMO_COST[cur] = 15;
@@ -219,8 +267,8 @@ void Weapon::init()
     BASE_COST[cur] = 30;
     BASE_PROJ_TYPE[cur] = 2;
     BASE_DAMAGE[cur] = 0.8;
-    BASE_FIRE_RATE[cur] = 55;
-    BASE_SHOT_SPEED[cur] = 0.15;
+    BASE_FIRE_RATE[cur] = 0.91;
+    BASE_SHOT_SPEED[cur] = 8.2;
     BASE_PROJ_LIFESPAN[cur] = 35;
     BASE_AMMO_PER_PURCHASE[cur] = 20;
     BASE_AMMO_COST[cur] = 20;
@@ -232,9 +280,9 @@ void Weapon::init()
     BASE_DESC[cur] = "It was made in an obscure Chinese sweatshop.";
     BASE_COST[cur] = 76;
     BASE_PROJ_TYPE[cur] = 0;
-    BASE_DAMAGE[cur] = 18;
-    BASE_FIRE_RATE[cur] = 127;
-    BASE_SHOT_SPEED[cur] = 0.30;
+    BASE_DAMAGE[cur] = 26;
+    BASE_FIRE_RATE[cur] = 2.15;
+    BASE_SHOT_SPEED[cur] = 16.6;
     BASE_PROJ_LIFESPAN[cur] = 50;
     BASE_AMMO_PER_PURCHASE[cur] = 20;
     BASE_AMMO_COST[cur] = 20;
@@ -246,13 +294,13 @@ void Weapon::init()
     BASE_COST[cur] = 45;
     BASE_PROJ_TYPE[cur] = 0;
     BASE_DAMAGE[cur] = 3.5;
-    BASE_FIRE_RATE[cur] = 14;
-    BASE_SHOT_SPEED[cur] = 0.15;
+    BASE_FIRE_RATE[cur] = 0.23;
+    BASE_SHOT_SPEED[cur] = 8.8;
     BASE_PROJ_LIFESPAN[cur] = 22;
     BASE_AMMO_PER_PURCHASE[cur] = 60;
     BASE_AMMO_COST[cur] = 10;
     BASE_SPREAD[cur] = 0.27;
-    BASE_FIRERATE_IRREGULARITY[cur] = 1; //ranges from fireRate to (1+1 = 2)*fireRate
+    BASE_FIRERATE_IRREGULARITY[cur] = 1; //fire interval ranges from fireRate to 1-2x fireRate
     //
     cur = 6;
     HAS_SPRITE[cur] = false;
@@ -260,8 +308,8 @@ void Weapon::init()
     BASE_DESC[cur] = "This weapon is an AI-only weapon! You shouldn't be seeing this.";
     BASE_PROJ_TYPE[cur] = 3;
     BASE_DAMAGE[cur] = 3;
-    BASE_FIRE_RATE[cur] = 41;
-    BASE_SHOT_SPEED[cur] = 0.10;
+    BASE_FIRE_RATE[cur] = 0.66;
+    BASE_SHOT_SPEED[cur] = 5.5;
     BASE_PROJ_LIFESPAN[cur] = INF;
     BASE_AMMO[cur] = INF;
     //
@@ -282,19 +330,19 @@ void Projectile::init()
     //bullet
     int cur = 0;
     BASE_SHAPE[cur] = "circle";
-    BASE_SIZE1[cur] = 0.16;
+    BASE_SIZE1[cur] = 0.08;
     //arrow
     cur = 1;
     BASE_SHAPE[cur] = "square";
-    BASE_SIZE1[cur] = 0.32;
+    BASE_SIZE1[cur] = 0.16;
     //colorful bullet
     cur = 2;
     BASE_SHAPE[cur] = "circle";
-    BASE_SIZE1[cur] = 0.16;
+    BASE_SIZE1[cur] = 0.08;
     //red bullet (mainly for AI)
     cur = 3;
     BASE_SHAPE[cur] = "circle";
-    BASE_SIZE1[cur] = 0.16;
+    BASE_SIZE1[cur] = 0.08;
 }
 void Item::init()
 {
@@ -353,10 +401,30 @@ void Item::init()
     BASE_COST[cur] = 77;
     BASE_DESC[cur] = "Makes you excited because it reminds you of all the anime you plan to watch after finishing this floor. "
     "Gain more and more movement speed when there's less and less time left on the clock.";
-    //Dalton's Atom
+    //
     cur = 10;
     BASE_NAME[cur] = "Red Gloves";
     BASE_COST[cur] = 45;
     BASE_DESC[cur] = "Your hands feel warm and happy because they are coated in fuzzy red material. Your weapons are happy that they "
     "are held by fuzzy material and fire faster.";
+    //
+    cur = 11;
+    BASE_NAME[cur] = "Red Pillow";
+    BASE_COST[cur] = 54;
+    BASE_DESC[cur] = "The fluff fills you with renewed vigor. +20 max HP.";
+    //
+    cur = 12;
+    BASE_NAME[cur] = "Mysterious Vial";
+    BASE_COST[cur] = 87;
+    BASE_DESC[cur] = "Minimal HP regeneration over time. Not FDA approved.";
+    //
+    cur = 13;
+    BASE_NAME[cur] = "Mysterious Phial";
+    BASE_COST[cur] = 87;
+    BASE_DESC[cur] = "Like a vial, but a phial. Deal more and receive more damage. Definitely not FDA approved.";
+    //
+    cur = 14;
+    BASE_NAME[cur] = "The Art of Sadism";
+    BASE_COST[cur] = 71;
+    BASE_DESC[cur] = "Gain renewed vigor from killing. 0/15 copies available at your local library.";
 }

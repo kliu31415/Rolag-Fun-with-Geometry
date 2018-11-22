@@ -33,15 +33,15 @@ double GeometricObject::centerDist(const GeometricObject *other) const
 }
 bool GeometricObject::collidesWithTerrain(const GameMap &game_map) const
 {
-    static Square tile(0, 0, 1); //this should work
-    double sz = getSize() / 2;
+    static Square tile(0, 0, 1); //might save a little time by making it static
+    double sz = getRadius();
     int minx = getX() - sz - 0.5, maxx = getX() + sz + 0.5;
     int miny = getY() - sz - 0.5, maxy = getY() + sz + 0.5;
     for(int i=minx; i<=maxx; i++)
     {
         for(int j=miny; j<=maxy; j++)
         {
-            if(!game_map.isPassableTile(i, j) && square(i - getX()) + square(j - getY()) < sz + std::sqrt(2))
+            if(!game_map.isPassableTile(i, j))
             {
                 tile.setX(i);
                 tile.setY(j);
@@ -65,44 +65,44 @@ Point Point::getPos(double cenX, double cenY, double angle)
     return Point(cenX + magnitude * std::cos(curAngle + angle), cenY + magnitude * std::sin(curAngle + angle));
 }
 //circle
-Circle::Circle(double x, double y, double diameter): GeometricObject(x, y)
+Circle::Circle(double x, double y, double radius): GeometricObject(x, y)
 {
     type = Type::circle;
-    this->diameter = diameter;
+    this->radius = radius;
 }
 Circle::Circle(const Circle *other): GeometricObject(other->getX(), other->getY())
 {
     type = Type::circle;
-    this->diameter = other->getSize();
+    this->radius = other->getRadius();
 }
-double Circle::getSize() const
+double Circle::getRadius() const
 {
-    return diameter;
+    return radius;
 }
-void Circle::setSize(double size)
+void Circle::setRadius(double size)
 {
-    diameter = size;
+    radius = size;
 }
 Circle::operator Polygon() const
 {
-    static Polygon res(10);
+    Polygon res(10);
     const static double K = 1.0339; //approximating a circle as a decagon
-    double sz = K * getSize() / 2;
+    double sz = K * getRadius();
     for(int i=0; i<10; i++)
     {
         res.vertices[i] = Point(sz * std::cos(i), sz * std::sin(i));
     }
-    res.setSize(sz);
+    res.setRadius(sz);
     res.setX(getX());
     res.setY(getY());
-    return Polygon(res);
+    return res;
 }
 bool Circle::collidesWith(const GeometricObject *other) const
 {
     switch(other->type)
     {
     case Type::circle:
-        return square(other->getX() - getX()) + square(other->getY() - getY()) < square(getSize()/2) + square(other->getSize()/2);
+        return square(other->getX() - getX()) + square(other->getY() - getY()) < square(getRadius()) + square(other->getRadius());
     case Type::square:
         return other->collidesWith(this);
     case Type::polygon:
@@ -121,28 +121,28 @@ Square::Square(double x, double y, double size): GeometricObject(x, y)
 Square::Square(const Square *other): GeometricObject(other->getX(), other->getY())
 {
     type = Type::square;
-    this->size = other->getSize();
+    this->size = other->size;
 }
-double Square::getSize() const
+double Square::getRadius() const
 {
-    return size;
+    return size * sqrt(0.5);
 }
-void Square::setSize(double size)
+void Square::setSideLength(double size)
 {
     this->size = size;
 }
 Square::operator Polygon() const
 {
-    static Polygon res(4);
-    double sz = getSize() / 2;
+    Polygon res(4);
+    double sz = size / 2;
     res.vertices[0] = Point(sz, sz);
     res.vertices[1] = Point(sz, -sz);
     res.vertices[2] = Point(-sz, -sz);
     res.vertices[3] = Point(-sz, sz);
-    res.setSize(sz);
+    res.setRadius(getRadius());
     res.setX(getX());
     res.setY(getY());
-    return Polygon(res);
+    return res;
 }
 static inline bool isPointInCircle(double pointX, double pointY, double x, double y, double r)
 {
@@ -165,17 +165,20 @@ bool Square::collidesWith(const GeometricObject *other) const
     switch(other->type)
     {
     case Type::circle:
-        return isPointInCircle(other->getX(), other->getY(), getX() - getSize()/2, getY() - getSize()/2, other->getSize()/2) ||
-               isPointInCircle(other->getX(), other->getY(), getX() + getSize()/2, getY() - getSize()/2, other->getSize()/2) ||
-               isPointInCircle(other->getX(), other->getY(), getX() - getSize()/2, getY() + getSize()/2, other->getSize()/2) ||
-               isPointInCircle(other->getX(), other->getY(), getX() + getSize()/2, getY() + getSize()/2, other->getSize()/2) ||
-               isPointInRect(other->getX(), other->getY(), getX() - getSize()/2 - other->getSize()/2,
-                             getY() - getSize()/2, getSize() + other->getSize(), getSize()) ||
-               isPointInRect(other->getX(), other->getY(), getX() - getSize()/2,
-                             getY() - getSize()/2 - other->getSize()/2, getSize(), getSize() + other->getSize());
+        return isPointInCircle(other->getX(), other->getY(), getX() - size/2, getY() - size/2, other->getRadius()) ||
+               isPointInCircle(other->getX(), other->getY(), getX() + size/2, getY() - size/2, other->getRadius()) ||
+               isPointInCircle(other->getX(), other->getY(), getX() - size/2, getY() + size/2, other->getRadius()) ||
+               isPointInCircle(other->getX(), other->getY(), getX() + size/2, getY() + size/2, other->getRadius()) ||
+               isPointInRect(other->getX(), other->getY(), getX() - size/2 - other->getRadius(),
+                             getY() - size/2, size + other->getRadius(), size) ||
+               isPointInRect(other->getX(), other->getY(), getX() - size/2,
+                             getY() - size/2 - other->getRadius(), size, size + other->getRadius());
     case Type::square:
-        return squaresIntersect(getX() - getSize()/2, getY() - getSize()/2, getSize(),
-                               other->getX() - other->getSize()/2, other->getY() - other->getSize()/2, other->getSize());
+        {
+            auto *o = static_cast<const Square*>(other);
+            return squaresIntersect(getX() - size/2, getY() - size/2, size,
+                               other->getX() - o->size/2, other->getY() - o->size/2, o->size);
+        }
     case Type::polygon:
         return other->collidesWith(this);
     default:
@@ -194,15 +197,15 @@ Polygon::Polygon(double x, double y, std::initializer_list<Point> points): Geome
 {
     type = Type::polygon;
     setAngle(0);
-    vertices.getDeepCopy(points);
-    computeSize();
+    vertices = points;
+    computeRadius();
 }
 Polygon::Polygon(double x, double y, static_array<Point> &points): GeometricObject(x, y)
 {
     type = Type::polygon;
     setAngle(0);
-    vertices.getDeepCopy(points);
-    computeSize();
+    vertices = points;
+    computeRadius();
 }
 Polygon::Polygon(const Polygon &other): GeometricObject(other.getX(), other.getY())
 {
@@ -210,31 +213,28 @@ Polygon::Polygon(const Polygon &other): GeometricObject(other.getX(), other.getY
     setAngle(0);
     setX(other.getX());
     setY(other.getY());
-    vertices.getDeepCopy(other.vertices);
-    computeSize();
+    setRadius(other.radius);
+    vertices = other.vertices;
 }
-void Polygon::computeSize()
+void Polygon::computeRadius()
 {
-    size = 0;
-    for(size_t i=0; i<vertices.size(); i++)
+    radius = 0;
+    for(auto &i: vertices)
     {
-        for(size_t j=0; j<i; j++)
-        {
-            size = std::max(size, std::hypot(vertices[i].x - vertices[j].x, vertices[i].y - vertices[j].y));
-        }
+        radius = std::max(radius, std::hypot(i.x, i.y));
     }
 }
 size_t Polygon::getNumVertices()
 {
     return vertices.size();
 }
-void Polygon::setSize(double size)
+void Polygon::setRadius(double radius)
 {
-    this->size = size;
+    this->radius = radius;
 }
-double Polygon::getSize() const
+double Polygon::getRadius() const
 {
-    return size;
+    return radius;
 }
 Polygon::operator Polygon() const
 {
@@ -250,7 +250,7 @@ static inline double cp(double x1, double y1, double x2, double y2)
 static inline bool segmentsIntersect(Point a1, Point a2, Point b1, Point b2)
 {
     //points are implicitly converted to 2D geometric vectors
-    //might not work for some edge cases that can probably be ignored because they will have a minimal effect due to the nature of floating points
+    //might not work for some edge cases which can probably be ignored because they will have a minimal effect due to the nature of floating points
     double x1 = a1.x - b1.x, x2 = b2.x - a1.x, x3 = a2.x - b2.x, x4 = b1.x - a2.x;
     double y1 = a1.y - b1.y, y2 = b2.y - a1.y, y3 = a2.y - b2.y, y4 = b1.y - a2.y;
     //return sign(cp(x1, y1, x2, y2)) == sign(cp(x3, y3, x4, y4)) && sign(cp(x2, y2, x3, y3)) == sign(cp(x4, y4, x1, y1));
@@ -263,6 +263,8 @@ static inline bool segmentsIntersect(Point a1, Point a2, Point b1, Point b2)
 }
 bool Polygon::collidesWithPolygon(const Polygon &other) const
 {
+    if(square(getRadius() + other.getRadius()) < square(getX() - other.getX()) + square(getY() - other.getY())) //bounding circles don't overlap
+        return false;
     //check if any edges intersect
     static static_array<Point> v1(11), v2(11); //allocating it every time would be costly. Assume that no polygon has more than 10 vertices.
     for(size_t i=0; i<vertices.size(); i++) //vertices.get() is used as a read only operation to access a Point
@@ -292,7 +294,7 @@ bool Polygon::collidesWithPolygon(const Polygon &other) const
     //also check if one is inside the other with ray tracing
     int intersectionCount = 0;
     Point a = v2.get(0);
-    Point b(a.x + 1e9, a.y + 1); //the slope of 1e-9 makes it probable that they ray won't cross any vertices
+    Point b(a.x + 1e9, a.y + 1); //the slope of 1e-9 makes it probable that the ray won't cross any vertices
     for(size_t i=0; i<vertices.size(); i++)
     {
         if(segmentsIntersect(a, b, v1.get(i), v1.get(i+1)))

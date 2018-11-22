@@ -53,7 +53,6 @@ std::shared_ptr<Player> GameState::getPlayer()
 }
 void GameState::initPrelevelMenu()
 {
-    currentFloor++;
     game_state_state.push(GameStateState::preLevelMenu);
     shopItems.clear();
     int NUM_SHOP_ITEMS = 4;
@@ -74,6 +73,7 @@ void GameState::initPrelevelMenu()
         if(toAdd.name == -1)
         {
             print_warning("Unable to generate a shop item in this iteration");
+            continue;
         }
         bool alreadyHas = false;
         for(auto &j: shopItems)
@@ -95,6 +95,7 @@ void GameState::initPrelevelMenu()
         if(!alreadyHas)
             shopItems.push_back(toAdd);
     }
+    shopWeapons.clear();
     int NUM_SHOP_WEAPONS = 4;
     int SHOP_WEAPON_ITER = 0; //if for whatever reason we can't fill the shop up then just break (better than crashing)
     while(SHOP_WEAPON_ITER++ < 100 && (int)shopWeapons.size() < NUM_SHOP_WEAPONS) //generate shop weapons
@@ -113,6 +114,7 @@ void GameState::initPrelevelMenu()
         if(toAdd.type == -1)
         {
             print_warning("Unable to generate a shop item in this iteration");
+            continue;
         }
         bool alreadyHas = false;
         for(auto &j: shopWeapons)
@@ -137,7 +139,12 @@ void GameState::initPrelevelMenu()
     prelevelMenuPos = 0;
     //make sure that the default Poofy Pistol (which shouldn't appear in the menu) is at position 0
     //weapons[0] is ignored/not rendered in the menu, and the ignored weapon should be the default one with infinite ammo
+    //at any rate, weapons[0] should always exist and never be anything other than the Poofy Pistol, hence the warning here
     auto p = getPlayer();
+    if(p->weapons.size() == 0)
+        print_warning("player has no weapons");
+    else if(p->weapons[0].type != 0)
+        print_warning("weapons[0] is not the Poofy Pistol");
     for(int i=0; i<(int)p->weapons.size(); i++)
     {
         if(p->weapons[i].type == 0)
@@ -164,7 +171,7 @@ void GameState::initNewFloor()
 }
 void GameState::initNewGame()
 {
-    currentFloor = 0;
+    currentFloor = 1;
     player = std::make_shared<Player>(0, 0); ///pass in whatever, the position isn't set yet
     initPrelevelMenu();
 }
@@ -200,7 +207,9 @@ void GameState::operateGameInGame()
         for(auto &i: game_map.projectiles)
             i.move(*this);
         for(auto &i: game_map.units)
+        {
             i->operate(*this);
+        }
         auto &proj = game_map.projectiles;
         for(int i=0; i<(int)proj.size(); i++) //check projectile collisions (do it separately from moving so projectiles don't appear in walls)
         {
@@ -225,7 +234,16 @@ void GameState::operateGameInGame()
     if(game_map.units.size() == 1) //level cleared! the player is the only unit remaining
     {
         game_state_state.pop();
-        initPrelevelMenu();
+        if(currentFloor%2 == 0) //only show the prelevel menu on non-boss floors
+        {
+            currentFloor++;
+            initPrelevelMenu();
+        }
+        else
+        {
+            currentFloor++;
+            initNewFloor();
+        }
     }
     for(int i=0; i<(int)disapObjs.size(); i++) //remove all dead units
     {
@@ -243,15 +261,15 @@ void GameState::drawHUD()
     fillRect(getFloorDisplayW(), 0, getHudBoundarySize(), getHudH(),
              hudBoundaryColor.r, hudBoundaryColor.g, hudBoundaryColor.b, hudBoundaryColor.a);
     VerticalTextDrawer HUDtext(getHudStartX(), 0, getFontSize(0.5), getWindowW());
-    HUDtext.draw(GameMap::BASE_FLOOR_NAME[currentFloor]);
+    HUDtext.draw(GameMap::BASE_FLOOR_NAME[currentFloor], VerticalTextDrawer::Justify::right);
     double &ftl = game_map.floorTimeLeft;
     if(ftl < 10) //not much time remaining!
-        HUDtext.draw(seconds_to_str_no_h(std::max(0, (int)(ftl + 1 - EPSILON))), VerticalTextDrawer::Justify::right, 127.5 * (1 + std::sin(ftl - 10)), 0, 0);
+        HUDtext.draw(seconds_to_str_no_h(std::max(0, (int)(ftl + 1 - EPSILON))), VerticalTextDrawer::Justify::right, 127.5 * (1 + std::sin(10 * (ftl - 10))), 0, 0);
     else HUDtext.draw(seconds_to_str_no_h(std::max(0, (int)(ftl + 1 - EPSILON))), VerticalTextDrawer::Justify::right);
     HUDtext.draw("$", VerticalTextDrawer::Justify::left, 0, 170, 0);
     HUDtext.drawOnSameLine(to_str(getPlayer()->money), VerticalTextDrawer::Justify::right, 0, 255, 0);
     HUDtext.draw("HP", VerticalTextDrawer::Justify::left, 170, 0, 0);
-    HUDtext.drawOnSameLine(to_str((int)(getPlayer()->HP + 1 - EPSILON)) + "/" + to_str((int)getPlayer()->maxHP), VerticalTextDrawer::Justify::right, 255, 0, 0);
+    HUDtext.drawOnSameLine(to_str((int)(getPlayer()->HP + 1 - EPSILON)) + "/" + to_str((int)(getPlayer()->maxHP + 1 - EPSILON)), VerticalTextDrawer::Justify::right, 255, 0, 0);
     HUDtext.fillRect(0, 0, 0, 30);
     HUDtext.draw("Weapons");
     int cnt = 0;
@@ -365,6 +383,7 @@ void GameState::operatePreLevelMenu()
                             {
                                 p->money -= cost;
                                 p->items.emplace_back(name);
+                                p->applyMods(p->items); //it's visually more pleasing to immediately see the effects of HP upgrades
                                 shopItems[menuPos-4].name = (Item::Name)NOT_SET;
                             }
                         }

@@ -26,11 +26,11 @@ namespace sdl_settings
     void load_config();
 }
 /**
-This prints a string to stdout and supports multi-threaded printing by using mutexes
+This prints a string to stdout
 */
 void print(std::string s);
 /**
-This prints a string and appends a newline to stdout and supports multi-threaded printing by using mutexes
+This prints a string and appends a newline to stdout
 */
 void println(std::string s);
 /**
@@ -69,6 +69,18 @@ double round(double x, int places);
 Returns the number of milliseconds since initSDL was called
 */
 int getTicks();
+/**
+Returns the number of nanoseconds since initSDL was called
+*/
+long long getTicksNs();
+/**
+Returns the number of seconds (as a double) since initSDL was called
+*/
+double getTicksS();
+/**
+Takes in a double and returns a formatted string to the specified number of decimal places
+*/
+std::string format_to_places(double x, int places);
 /**
 Sets the volume of SDL_Mixer
 */

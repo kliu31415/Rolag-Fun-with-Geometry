@@ -34,14 +34,11 @@ void Weapon::resetToBaseStats()
 }
 void Weapon::applyMod(const Item &item)
 {
-    double xAccuracy = 1, xDamage = 1, dFireRate = 1;
+    double xAccuracy = 1, dFireRate = 1;
     switch(item.name)
     {
     case Item::Name::Bullseye:
         xAccuracy += 0.4;
-        break;
-    case Item::Name::SadistsMachete:
-        xDamage += 1.05;
         break;
     case Item::Name::RedGloves:
         dFireRate += 0.1;
@@ -50,7 +47,6 @@ void Weapon::applyMod(const Item &item)
         break;
     }
     spread /= xAccuracy;
-    damage *= xDamage;
     fireRate /= dFireRate;
 }
 void Weapon::applyMods(const std::vector<Item> &items)
@@ -72,9 +68,9 @@ void Weapon::draw_wield(const GameState &game_state, int x, int y, double angle)
     int ppt = game_state.getPixelsPerTile();
     renderCopyEx(wield_sprites[type], x-ppt, y-ppt, ppt*2, ppt*2, TO_DEG(angle));
 }
-void Weapon::update(GameState &game_state, std::shared_ptr<Unit> unit, bool fire, double offset /*=NOT_SET*/)
+void Weapon::update(GameState &game_state, std::shared_ptr<Unit> unit, bool fire)
 {
-    fireCounter -= 1.0 / ITER_PER_FRAME;
+    fireCounter -= TICK_SPEED;
     if(fire && fireCounter<=0 && ammo>0)
     {
         if(ammo != INF)
@@ -82,22 +78,14 @@ void Weapon::update(GameState &game_state, std::shared_ptr<Unit> unit, bool fire
         fireCounter = fireRate * (1 + randf() * BASE_FIRERATE_IRREGULARITY[type]);
         for(int iter=0; iter<BASE_PROJ_PER_SHOT[type]; iter++)
         {
-            double projAngle = unit->getAngle() + spread * (1 - 2*randf());
-            double dX = BASE_SHOT_SPEED[type] * std::cos(projAngle);
-            double dY = BASE_SHOT_SPEED[type] * std::sin(projAngle);
-            double norm = std::hypot(dX, dY);
-            if(offset == NOT_SET)
-                offset = unit->shape->getSize() * 0.8;
-            double initX = unit->getX() + dX * offset / norm;
-            double initY = unit->getY() + dY * offset / norm;
-            game_state.game_map.projectiles.emplace_back(unit->affiliation, BASE_PROJ_TYPE[type], unit, damage, initX, initY, dX + unit->moveX*0.5,
-                                                dY + unit->moveY*0.5, BASE_PROJ_LIFESPAN[type], projAngle);
+            Projectile::create(game_state, unit, BASE_PROJ_TYPE[type], damage, BASE_SHOT_SPEED[type],
+                               unit->getAngle() + spread * (1 - 2*randf()), BASE_PROJ_LIFESPAN[type]);
         }
     }
 }
 void Weapon::resetFireCounter()
 {
-    //discourage frequent swapping by setting the fireCounter to the max possible value (no use of randf() here)
+    //discourage the player from frequently swapping weapons by setting the fireCounter to the max possible value (no use of randf() here)
     fireCounter = fireRate * (1 + BASE_FIRERATE_IRREGULARITY[type]);
 }
 //projectiles
@@ -119,10 +107,21 @@ Projectile::Projectile(Affiliation affiliation, int type, std::shared_ptr<Unit> 
     else if(BASE_SHAPE[type] == "square")
         shape = std::make_unique<Square>(x, y, BASE_SIZE1[type]);
 }
+void Projectile::create(GameState &game_state, std::shared_ptr<Unit> unit, int type, double dmg, double shotSpeed, double projAngle, double lifespan)
+{
+    double dX = shotSpeed * std::cos(projAngle);
+    double dY = shotSpeed * std::sin(projAngle);
+    double offset = Unit::BASE_PROJECTILE_OFFSET[unit->type];
+    double norm = std::hypot(dX, dY);
+    double initX = unit->getX() + dX * offset / norm;
+    double initY = unit->getY() + dY * offset / norm;
+    game_state.game_map.projectiles.emplace_back(unit->affiliation, type, unit, dmg, initX, initY, dX + unit->moveX*0.5,
+                                        dY + unit->moveY*0.5, lifespan, projAngle);
+}
 bool Projectile::collide(GameState &game_state)
 {
     //check if it has hit terrain or has expired
-    if(shape->collidesWithTerrain(game_state.game_map))
+    if(shape->collidesWithTerrain(game_state.game_map)) //check this first to prevent diagonally firing through terrain
         return true;
     if(timeTillExpiration < 0)
         return true;
@@ -143,12 +142,12 @@ bool Projectile::collide(GameState &game_state)
         }
     }*/
     auto &uPart = game_state.unitPartition;
-    int minx = std::max(0, (int)(getX() + 0.5 - shape->getSize() - PARTITION_DIST));
-    int maxx = std::min((int)uPart.size()-1, (int)(getX() + 0.5 + shape->getSize() + PARTITION_DIST));
+    int minx = std::max(0, (int)(getX() + 0.5 - shape->getRadius() - PARTITION_DIST));
+    int maxx = std::min((int)uPart.size()-1, (int)(getX() + 0.5 + shape->getRadius() + PARTITION_DIST));
     for(int i=minx; i<=maxx; i++)
     {
-        auto miny = std::lower_bound(uPart[i].begin(), uPart[i].end(), getY() - shape->getSize() - PARTITION_DIST, Unit::compare_y_with_double);
-        auto maxy = std::lower_bound(miny, uPart[i].end(), getY() + shape->getSize() + PARTITION_DIST + 0.001, Unit::compare_y_with_double);
+        auto miny = std::lower_bound(uPart[i].begin(), uPart[i].end(), getY() - shape->getRadius() - PARTITION_DIST, Unit::compare_y_with_double);
+        auto maxy = std::lower_bound(miny, uPart[i].end(), getY() + shape->getRadius() + PARTITION_DIST + 0.001, Unit::compare_y_with_double);
         while(miny < maxy)
         {
             auto j = *miny;
@@ -164,9 +163,9 @@ bool Projectile::collide(GameState &game_state)
 }
 void Projectile::move(GameState &game_state)
 {
-    setX(getX() + dX / ITER_PER_FRAME);
-    setY(getY() + dY / ITER_PER_FRAME);
-    timeTillExpiration -= 1.0 / ITER_PER_FRAME;
+    setX(getX() + dX * TICK_SPEED);
+    setY(getY() + dY * TICK_SPEED);
+    timeTillExpiration -= TICK_SPEED;
 }
 void Projectile::draw(const GameState &game_state) const
 {

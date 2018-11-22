@@ -137,25 +137,24 @@ namespace sdl_settings
     }
 }
 //Non SDL functions
-static std::mutex stdoutMutex;
 /**
-This prints a string to stdout and supports multi-threaded printing by using mutexes
+This prints a string to stdout
 */
 void print(std::string s)
 {
     //stdoutMutex.lock();
-    printf("%s", s.c_str());
-    fflush(stdout);
+    std::puts(s.c_str());
+    std::fflush(stdout);
     //stdoutMutex.unlock();
 }
 /**
-This prints a string and appends a newline to stdout and supports multi-threaded printing by using mutexes
+This prints a string and appends a newline to stdout
 */
 void println(std::string s)
 {
     //stdoutMutex.lock();
-    printf("%s\n", s.c_str());
-    fflush(stdout);
+    std::puts(s.c_str());
+    std::fflush(stdout);
     //stdoutMutex.unlock();
 }
 /**
@@ -267,22 +266,53 @@ Rounds a double to the specified number of places (0 to 9)
 */
 double round(double x, int places)
 {
-    const static long long p[]{1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000};
-    x *= p[places];
-    long long y;
+    double p = pow(10, places);
     if(x >= 0)
-        y = x + 0.5;
-    else y = x - 0.5;
-    return (double)y / p[places];
+        return std::floor(x * p + 0.5) / p;
+    else return std::floor(x * p - 0.5) / p;
 }
 /**
 Returns the number of milliseconds since initSDL was called
 */
 int getTicks()
 {
+    return getTicksNs() / 1000000;
+}
+/**
+Returns the number of milliseconds since initSDL was called
+*/
+long long getTicksNs()
+{
     static auto startTime = std::chrono::high_resolution_clock::now();
     auto t = std::chrono::high_resolution_clock::now();
-    return std::chrono::duration_cast<std::chrono::milliseconds>(t - startTime).count();
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(t - startTime).count();
+}
+/**
+Returns the number of seconds (as a double) since initSDL was called
+*/
+double getTicksS()
+{
+    return getTicksNs() / 1e9;
+}
+/**
+Takes in a double and returns a formatted string to the specified number of decimal places
+*/
+std::string format_to_places(double x, int places)
+{
+    std::string res = to_str(round(x, places));
+    for(int i=0; i<res.size(); i++)
+    {
+        if(res[i] == '.')
+        {
+            while(res.size() < i + places + 1)
+                res += '0';
+            return res;
+        }
+    }
+    res += '.';
+    for(int i=0; i<places; i++)
+        res += '0';
+    return res;
 }
 //End non SDL functions
 /**

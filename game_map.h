@@ -15,6 +15,7 @@ class GameMap
     static double UNIT_SPAWN_WEIGHT[NUM_FLOORS][Unit::NUM_UNITS];
     static double UNIT_SPAWN_CHANCE[NUM_FLOORS], TOTAL_UNIT_SPAWN_WEIGHT[NUM_FLOORS];
     static int BASE_FLOOR_TIME[NUM_FLOORS]; //the number of seconds there are to finish the floor before you start losing health
+    static int FLOOR_W[NUM_FLOORS], FLOOR_H[NUM_FLOORS];
     static SDL_Texture *dirt_sprites[NUM_DIRT_SPRITES], *wall_sprites[NUM_WALL_SPRITES];
     SDL_Texture *current_wall_sprite, *current_dirt_sprite, *current_blank_sprite;
     enum class MapTile{not_set, dirt, blank, wall};

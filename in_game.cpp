@@ -36,5 +36,4 @@ void handle_global_game_state_in_game(GameState &game_state)
         game_state.drawPreLevelMenu();
         break;
     }
-    updateScreen();
 }

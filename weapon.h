@@ -20,7 +20,7 @@ private:
     static SDL_Texture *wield_sprites[NUM_WEAPONS];
     static int BASE_PROJ_TYPE[NUM_WEAPONS];
     static bool HAS_SPRITE[NUM_WEAPONS];
-    double damage, spread;
+    double damage, spread, projOffset;
     void resetToBaseStats();
 public:
     static std::string BASE_NAME[NUM_WEAPONS], BASE_DESC[NUM_WEAPONS];
@@ -35,7 +35,7 @@ public:
     Weapon(int type);
     void draw(const GameState &game_state, int x, int y, double angle) const;
     void draw_wield(const GameState &game_state, int x, int y, double angle) const;
-    void update(GameState &game_state, std::shared_ptr<Unit> unit, bool fire, double offset = NOT_SET);
+    void update(GameState &game_state, std::shared_ptr<Unit> unit, bool fire);
     void resetFireCounter();
     void applyMod(const Item &item);
     void applyMods(const std::vector<Item> &items);
@@ -54,6 +54,7 @@ public:
     std::unique_ptr<GeometricObject> shape;
     std::shared_ptr<Unit> owner;
     Projectile(Affiliation affiliation, int type, std::shared_ptr<Unit> owner, double damage, double x, double y, double dX, double dY, double timeTillExpiration, double angle);
+    static void create(GameState &game_state, std::shared_ptr<Unit> unit, int type, double dmg, double shotSpeed, double projAngle, double lifespan);
     static void init();
     double getX() const;
     double getY() const;

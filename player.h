@@ -10,11 +10,9 @@ class Player: public Unit
     void updateKeyPressTimer(const uint8_t *keystate, int &timer, SDL_Scancode key);
     void updateMinimap(GameMap &game_map) = delete; //updating the minimap is expensive and it's not really
 public:
-    int money;
     Player();
     Player(double startX, double startY);
     static void init();
     void moveToNewPosition(GameMap &game_map, double dX, double dY);
     void handleInput(GameState &game_state);
-    void draw(const GameState &game_state) const;
 };

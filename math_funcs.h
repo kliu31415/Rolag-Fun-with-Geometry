@@ -17,8 +17,7 @@ public:
     enum class Type{circle, square, polygon} type;
     virtual bool collidesWith(const GeometricObject *other) const = 0;
     bool collidesWithTerrain(const GameMap &game_map) const;
-    virtual double getSize() const = 0; //returns the maximum width/length of this object
-    virtual void setSize(double size) = 0;
+    virtual double getRadius() const = 0; //returns the maximum distance from the center of rotation to any vertex
     inline double getX() const {return x;}
     inline double getY() const {return y;}
     inline void setX(double x) {this->x = x;}
@@ -31,13 +30,13 @@ public:
 
 class Circle: public GeometricObject //cannot be rotated
 {
-    double diameter;
+    double radius;
 public:
     Circle(const Circle*);
-    Circle(double x, double y, double diameter);
+    Circle(double x, double y, double radius);
     bool collidesWith(const GeometricObject *other) const override;
-    double getSize() const override;
-    void setSize(double size) override;
+    double getRadius() const override;
+    void setRadius(double size);
     operator Polygon() const override;
 };
 
@@ -48,8 +47,8 @@ public:
     Square(const Square*);
     Square(double x, double y, double size);
     bool collidesWith(const GeometricObject *other) const override;
-    double getSize() const override;
-    void setSize(double size) override;
+    double getRadius() const override;
+    void setSideLength(double size);
     operator Polygon() const override;
 };
 
@@ -63,7 +62,7 @@ struct Point
 
 class Polygon: public GeometricObject //a polygon consists of a list of vertices and can be rotated
 {
-    double size;
+    double radius;
 public:
     static_array<Point> vertices;
     Polygon(double x, double y, std::initializer_list<Point> points);
@@ -73,10 +72,10 @@ public:
     size_t getNumVertices();
     bool collidesWith(const GeometricObject *other) const override;
     bool collidesWithPolygon(const Polygon &other) const;
-    double getSize() const override;
-    void setSize(double size) override;
+    double getRadius() const override;
+    void setRadius(double radius);
     operator Polygon() const override;
-    void computeSize();
+    void computeRadius();
 };
 
 template<class T> inline T sign(T v)

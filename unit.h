@@ -21,25 +21,31 @@ public:
 class Unit: public std::enable_shared_from_this<Unit>
 {
 public:
-    static constexpr int NUM_UNITS = 7;
+    static constexpr int NUM_UNITS = 8;
 protected:
     static int IDcounter; //each unit is assigned a unique ID to help organize things. This starts at 0 and increases every time a unit is created.
-    enum class MovementBehavior{none, player, random, homing_simple, homing_erratic, cardinal, bouncy};
-    enum class WeaponBehavior{none, player, random, line_to_player, same_angle};
+    enum class MovementBehavior{none, player, random, homing_simple, homing_erratic, cardinal, bouncy, boss_0};
+    enum class WeaponBehavior{none, player, random, line_to_player, same_angle, boss_0};
     enum class RotationBehavior{none, player, constant, constant_bidirectional};
     static MovementBehavior BASE_MOVEMENT_BEHAVIOR[NUM_UNITS];
     static WeaponBehavior BASE_WEAPON_BEHAVIOR[NUM_UNITS];
     static RotationBehavior BASE_ROTATION_BEHAVIOR[NUM_UNITS];
-    static double BASE_MOVEMENT_SPEED[NUM_UNITS], BASE_HP[NUM_UNITS], BASE_ROTATION_VAR1[NUM_UNITS];
+    static double (*BASE_ROTATION_FUNC[NUM_UNITS])(double);
+    static double BASE_MOVEMENT_SPEED[NUM_UNITS], BASE_HP[NUM_UNITS];
     static double BASE_SIZE1[NUM_UNITS], BASE_VISION_DISTANCE[NUM_UNITS];
+    static double BASE_MONEY_REWARD[NUM_UNITS];
+    static std::string BASE_NAME[NUM_UNITS];
     static bool BASE_IS_SPECTRAL[NUM_UNITS];
     static int BASE_WEAPON[NUM_UNITS];
+    static void (*BASE_OTHER_BEHAVIOR[NUM_UNITS])(GameState &game_state, const std::shared_ptr<Unit> &unit, double dX, double dY, double dAngle);
     bool isSpectral;
     bool collidesWithOtherUnit(GameState &game_state); //also modifies the unit if they collide
     bool showHPbar;
     double visionDistance;
     double movementSpeed;
     double omnivamp;
+    double creationTime;
+    double timeWhenLastTookDamage;
     void resetToBaseStats();
     void handleCollision(Unit &other); //the other unit applies its collision effects to this unit
     void moveRandomly(const GameMap &game_map, double k);
@@ -47,6 +53,7 @@ protected:
     void tryMovingToPosition(GameState &game_state, double dX, double dY);
     void rotateToNewAngle(GameState &game_state, double dAngle);
     bool tryToMoveToNewPositionAndAngle(GameState &game_state, double dX, double dY, double dAngle);
+    double getAgeSeconds() const;
 public:
     static SDL_Texture *sprites[NUM_UNITS];
     static double BASE_PROJECTILE_OFFSET[NUM_UNITS];
@@ -59,8 +66,9 @@ public:
     std::vector<TemporaryMod> tempMods;
     Affiliation affiliation, origAffiliation;
     int curWeapon;
-    int type, ID;
-    double HP, maxHP, damageOnCollision;
+    int type, ID, money;
+    double HP, maxHP, HPregen, HPregenOnKill, damageOnCollision;
+    double damageReceivedMult, damageDealtMult;
     double moveX, moveY, moveAngle; //the most recent dX, dY, dAngle
     static void init();
     static bool compare_y_with_unit(const std::shared_ptr<Unit> &a, const std::shared_ptr<Unit> &b);
@@ -78,7 +86,7 @@ public:
     double dist(const Unit *other) const;
     void operate(GameState &game_state);
     void setInitialPosition(double x, double y);
-    virtual void draw(const GameState &game_state) const;
+    void draw(const GameState &game_state) const;
     static void dealDamage(Unit *a, Unit *b, double damage); //a deals damage to b
     bool isDead() const;
     void applyMod(const Item &item);

@@ -16,6 +16,7 @@ double GameMap::UNIT_SPAWN_WEIGHT[GameMap::NUM_FLOORS][Unit::NUM_UNITS];
 double GameMap::UNIT_SPAWN_CHANCE[GameMap::NUM_FLOORS], GameMap::TOTAL_UNIT_SPAWN_WEIGHT[GameMap::NUM_FLOORS];
 double GameMap::TOTAL_ITEM_SHOP_SPAWN_WEIGHT[GameMap::NUM_FLOORS], GameMap::ITEM_SHOP_SPAWN_WEIGHT[GameMap::NUM_FLOORS][Item::NUM_ITEMS];
 double GameMap::TOTAL_WEAPON_SHOP_SPAWN_WEIGHT[GameMap::NUM_FLOORS], GameMap::WEAPON_SHOP_SPAWN_WEIGHT[GameMap::NUM_FLOORS][Weapon::NUM_WEAPONS];
+int GameMap::FLOOR_W[GameMap::NUM_FLOORS], GameMap::FLOOR_H[GameMap::NUM_FLOORS];
 GameMap::GameMap(){}
 GameMap::GameMap(GameState &game_state)
 {
@@ -354,22 +355,33 @@ void GameMap::generateFloorGeneric(int numClusters, double fillFactor)
         for(auto &j: i)
             if(j == MapTile::not_set)
                 j = MapTile::wall;
+    double curDiff = 0; //difference between # of spawned units so far and expected number of spawned units
+    double curChance = UNIT_SPAWN_CHANCE[floor]; //if we were supposed to create a unit but it didn't fit, then increase this
     for(int i=0; i<getNumColumns(); i++) //add enemies
         for(int j=0; j<getNumRows(); j++)
-            if(std::hypot(getStartPositionX()-i, getStartPositionY()-j) > 5 && isPassableTile(i, j) && randf() < UNIT_SPAWN_CHANCE[floor])
+            if(isPassableTile(i, j))
             {
-                double x = randf() * TOTAL_UNIT_SPAWN_WEIGHT[floor];
-                for(int k=1; k<Unit::NUM_UNITS; k++)
+                curDiff += UNIT_SPAWN_CHANCE[floor];
+                if(std::hypot(getStartPositionX()-i, getStartPositionY()-j) > 5 && randf() - curDiff / 10 < curChance)
                 {
-                    if(x < UNIT_SPAWN_WEIGHT[floor][k])
+                    double x = randf() * TOTAL_UNIT_SPAWN_WEIGHT[floor];
+                    for(int k=1; k<Unit::NUM_UNITS; k++)
                     {
-                        std::shared_ptr<Unit> unit = std::make_shared<Unit>(k, Affiliation::generic_enemy, i, j);
-                        if(unit->collidesWithTerrain(*this) || unit->collidesWithOtherUnit_checkToValidateMap(units))
+                        if(x < UNIT_SPAWN_WEIGHT[floor][k])
+                        {
+                            std::shared_ptr<Unit> unit = std::make_shared<Unit>(k, Affiliation::generic_enemy, i, j);
+                            if(unit->collidesWithTerrain(*this) || unit->collidesWithOtherUnit_checkToValidateMap(units))
+                            {
+                                curChance = 1;
+                                break;
+                            }
+                            curDiff--;
+                            curChance = UNIT_SPAWN_CHANCE[floor];
+                            units.push_back(unit);
                             break;
-                        units.push_back(unit);
-                        break;
+                        }
+                        x -= UNIT_SPAWN_WEIGHT[floor][k];
                     }
-                    x -= UNIT_SPAWN_WEIGHT[floor][k];
                 }
             }
 }
@@ -386,6 +398,8 @@ void GameMap::dfsValidate(std::vector<std::vector<bool> > &visited, int x, int y
 }
 bool GameMap::isValidFloor() const
 {
+    if(floor%2 == 0) //it's a custom boss floor
+        return true;
     std::vector<std::vector<bool> > visited(getNumColumns(), std::vector<bool>(getNumRows(), false));
     bool dfsAlready = false;
     for(int i=0; i<getNumColumns(); i++)
@@ -413,12 +427,21 @@ void GameMap::generateMapFloor1()
     current_blank_sprite = wall_sprites[0];
     current_wall_sprite = wall_sprites[1];
     current_dirt_sprite = dirt_sprites[0];
-    setMapSize(50, 40);
-    generateFloorGeneric(20, 0.5);
+    setMapSize(FLOOR_W[1], FLOOR_H[1]);
+    generateFloorGeneric(10, 0.5);
 }
 void GameMap::generateMapFloor2()
 {
-
+    current_blank_sprite = wall_sprites[0];
+    current_wall_sprite = wall_sprites[1];
+    current_dirt_sprite = dirt_sprites[0];
+    setMapSize(10, 10);
+    for(auto &i: tiles)
+        for(auto &j: i)
+            j = MapTile::dirt;
+    startPositionX = 0;
+    startPositionY = 0;
+    units.push_back(std::make_shared<Unit>(7, Affiliation::generic_enemy, 4.5, 4.5));
 }
 void GameMap::generateFloor()
 {

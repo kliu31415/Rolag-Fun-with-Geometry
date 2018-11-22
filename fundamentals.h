@@ -62,6 +62,11 @@ public:
         this->sz = sz;
         vals = std::make_unique<T[]>(sz);
     }
+    static_array(static_array &&other)
+    {
+        vals = std::move(other.vals);
+        sz = other.sz;
+    }
     static_array(std::initializer_list<T> x)
     {
         this->sz = x.size();
@@ -70,12 +75,19 @@ public:
         for(auto &i: x)
             vals[pos++] = i;
     }
-    void getDeepCopy(const static_array<T> &other)
+    static_array &operator = (static_array &&other)
     {
-        this->sz = other.sz;
-        this->vals = std::make_unique<T[]>(sz);
+        vals = std::move(other.vals);
+        sz = other.sz;
+        return *this;
+    }
+    static_array &operator = (const static_array &other)
+    {
+        sz = other.sz;
+        vals = std::make_unique<T[]>(sz);
         for(size_t i=0; i<sz; i++)
             vals[i] = other.vals[i];
+        return *this;
     }
     inline T &operator[](size_t idx)
     {
@@ -89,11 +101,11 @@ public:
     {
         return sz;
     }
-    T* begin()
+    T *begin()
     {
         return vals.get();
     }
-    T* end()
+    T *end()
     {
         return vals.get() + sz;
     }

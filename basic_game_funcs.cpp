@@ -1,6 +1,8 @@
 #include "basic_game_funcs.h"
 #include "game_state.h"
-///Affiliation
+#include "sdl_base.h"
+#include "fundamentals.h"
+//Affiliation
 bool areEnemies(Affiliation a, Affiliation b, bool recursed)
 {
     if(a==Affiliation::player && b==Affiliation::generic_enemy)
@@ -9,7 +11,7 @@ bool areEnemies(Affiliation a, Affiliation b, bool recursed)
         return areEnemies(b, a, true);
     return false;
 }
-///DisappearingObject
+//DisappearingObject
 DisappearingObject::DisappearingObject(SDL_Texture *t, int timeLeft, double x, double y, double angle)
 {
     this->t = t;
@@ -39,7 +41,7 @@ bool DisappearingObject::shouldRemove() const
 {
     return timeLeft <= 0;
 }
-///VerticalTextDrawer
+//VerticalTextDrawer
 VerticalTextDrawer::VerticalTextDrawer(int x, int y, int h, int maxx)
 {
     this->x = x;
@@ -74,4 +76,41 @@ void VerticalTextDrawer::fillRect(uint8_t r, uint8_t g, uint8_t b, uint8_t a) co
 void VerticalTextDrawer::drawRect(uint8_t r, uint8_t g, uint8_t b, uint8_t a) const
 {
     ::drawRect(x, y, maxx-x, h, r, g, b, a);
+}
+//CPULoadCalculator
+CPULoadCalculator::CPULoadCalculator(ll time_range)
+{
+    this->time_range = time_range;
+    this->cpuTimeSum = 0;
+    this->t1 = -NOT_SET; //to help debug
+}
+void CPULoadCalculator::begin_counting()
+{
+    ll t = getTicksNs();
+    this->t1 = t;
+}
+void CPULoadCalculator::end_counting()
+{
+    if(t1 == -NOT_SET)
+        print_warning("CPULoadCalculator::end_counting was called before begin_counting");
+    ll t2 = getTicksNs();
+    cpuTimes.emplace(t1, t2 - t1);
+    cpuTimeSum += t2 - t1;
+    t1 = -NOT_SET;
+}
+double CPULoadCalculator::get_load()
+{
+    ll t = getTicks();
+    while(!cpuTimes.empty() && cpuTimes.front().A + time_range < t)
+    {
+        cpuTimeSum -= cpuTimes.front().B;
+        cpuTimes.pop();
+    }
+    if(cpuTimes.size() > 2)
+    {
+        double div = cpuTimes.back().A - cpuTimes.front().A;
+        if(div != 0)
+            return cpuTimeSum / div;
+    }
+    return 0;
 }
