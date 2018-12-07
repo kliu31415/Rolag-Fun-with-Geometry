@@ -2,9 +2,10 @@
 #include "sdl_base.h"
 #include "fundamentals.h"
 #include "game_map.h"
+#include "basic_game_funcs.h"
 #include <cmath>
 #include <algorithm>
-void normToHypot(double &x, double &y, double z)
+void __attribute__((hot)) normToHypot(double &x, double &y, double z)
 {
     if(std::fabs(x) < EPSILON) //the issue here is that x / h may equal inf. If moveX = inf, then units move off the map. Only happens in Debug build.
         x = 0;
@@ -31,7 +32,45 @@ double GeometricObject::centerDist(const GeometricObject *other) const
 {
     return std::hypot(x - other->x, y - other->y);
 }
-bool GeometricObject::collidesWithTerrain(const GameMap &game_map) const
+bool GeometricObject::collidesWithTerrain(const GenericMapRoom &room) const
+{
+    double sz = getRadius();
+    int minx = getX() - sz - 0.5, maxx = getX() + sz + 0.5;
+    int miny = getY() - sz - 0.5, maxy = getY() + sz + 0.5;
+    for(int i=minx; i<=maxx; i++)
+    {
+        for(int j=miny; j<=maxy; j++)
+        {
+            if(!room.isPassableTile(i, j))
+            {
+                Square tile(i, j, 1);
+                if(collidesWith(&tile))
+                    return true;
+            }
+        }
+    }
+    return false;
+}
+bool GeometricObject::collidesWithUnflyableTile(const GenericMapRoom &room) const
+{
+    double sz = getRadius();
+    int minx = getX() - sz - 0.5, maxx = getX() + sz + 0.5;
+    int miny = getY() - sz - 0.5, maxy = getY() + sz + 0.5;
+    for(int i=minx; i<=maxx; i++)
+    {
+        for(int j=miny; j<=maxy; j++)
+        {
+            if(!room.isFlyableTile(i, j))
+            {
+                Square tile(i, j, 1);
+                if(collidesWith(&tile))
+                    return true;
+            }
+        }
+    }
+    return false;
+}
+bool GeometricObject::collidesWithTile(const GenericMapRoom &room, MapTile type) const
 {
     static Square tile(0, 0, 1); //might save a little time by making it static
     double sz = getRadius();
@@ -41,7 +80,7 @@ bool GeometricObject::collidesWithTerrain(const GameMap &game_map) const
     {
         for(int j=miny; j<=maxy; j++)
         {
-            if(!game_map.isPassableTile(i, j))
+            if(i>=0 && j>=0 && i<room.getNumColumns() && j<room.getNumRows() && room.tiles[i][j] == type)
             {
                 tile.setX(i);
                 tile.setY(j);
@@ -52,13 +91,57 @@ bool GeometricObject::collidesWithTerrain(const GameMap &game_map) const
     }
     return false;
 }
+bool GeometricObject::handleCollisionsWithCollapsingTiles(GameMap &game_map) const
+{
+    static Square tile(0, 0, 1); //might save a little time by making it static
+    double sz = getRadius();
+    int minx = getX() - sz - 0.5, maxx = getX() + sz + 0.5;
+    int miny = getY() - sz - 0.5, maxy = getY() + sz + 0.5;
+    for(int i=minx; i<=maxx; i++)
+    {
+        for(int j=miny; j<=maxy; j++)
+        {
+            if(i>=0 && j>=0 && i<game_map.getNumColumns() && j<game_map.getNumRows() && game_map.timeTillCollapse[i][j]!=NOT_SET)
+            {
+                tile.setX(i);
+                tile.setY(j);
+                if(collidesWith(&tile))
+                {
+                    game_map.timeTillCollapse[i][j] -= TICK_SPEED * (1 + (DIFFICULTY-1)/5);
+                    if(game_map.timeTillCollapse[i][j] <= 0)
+                        game_map.tiles[i][j] = MapTile::hurt;
+                }
+            }
+        }
+    }
+    return false;
+}
+inline int conv(double pos, double cameraPos, int ppt)
+{
+    return (pos - cameraPos) * ppt;
+}
+void GeometricObject::drawHitbox(double cameraX, double cameraY) const
+{
+    Polygon p = Polygon(*this);
+    int ppt = getPixelsPerTile();
+    static static_array<Point> points(MAX_VERT_IN_POLYGON + 1);
+    for(int i=0; i<(int)p.vertices.size(); i++)
+    {
+        points[i] = p.vertices.get(i).getPos(getX(), getY(), getAngle());
+        points[i].x = conv(points[i].x, cameraX, ppt);
+        points[i].y = conv(points[i].y, cameraY, ppt);
+    }
+    points[p.vertices.size()] = points[0];
+    for(int i=0; i<(int)p.vertices.size(); i++)
+        drawLine(points[i].x, points[i].y, points[i+1].x, points[i+1].y, 0, 0, 255, 200);
+}
 //point
-Point::Point(double x, double y)
+__attribute__((hot)) Point::Point(double x, double y)
 {
     this->x = x;
     this->y = y;
 }
-Point Point::getPos(double cenX, double cenY, double angle)
+Point __attribute__((hot)) Point::getPos(double cenX, double cenY, double angle)
 {
     double curAngle = std::atan2(y, x);
     double magnitude = std::hypot(x, y);
@@ -75,7 +158,7 @@ Circle::Circle(const Circle *other): GeometricObject(other->getX(), other->getY(
     type = Type::circle;
     this->radius = other->getRadius();
 }
-double Circle::getRadius() const
+__attribute__((hot)) double Circle::getRadius() const
 {
     return radius;
 }
@@ -83,7 +166,7 @@ void Circle::setRadius(double size)
 {
     radius = size;
 }
-Circle::operator Polygon() const
+__attribute__((hot)) Circle::operator Polygon() const
 {
     Polygon res(10);
     const static double K = 1.0339; //approximating a circle as a decagon
@@ -123,7 +206,7 @@ Square::Square(const Square *other): GeometricObject(other->getX(), other->getY(
     type = Type::square;
     this->size = other->size;
 }
-double Square::getRadius() const
+double __attribute__((hot)) Square::getRadius() const
 {
     return size * sqrt(0.5);
 }
@@ -131,7 +214,7 @@ void Square::setSideLength(double size)
 {
     this->size = size;
 }
-Square::operator Polygon() const
+__attribute__((hot)) Square::operator Polygon() const
 {
     Polygon res(4);
     double sz = size / 2;
@@ -160,7 +243,7 @@ static inline bool squaresIntersect(double x1, double y1, double s1, double x2, 
 {
     return ((x1>x2 && x1<x2+s2) || (x2>x1 && x2<x1+s1)) && ((y1>y2 && y1<y2+s2) || (y2>y1 && y2<y1+s1));
 }
-bool Square::collidesWith(const GeometricObject *other) const
+bool __attribute__((hot)) Square::collidesWith(const GeometricObject *other) const
 {
     switch(other->type)
     {
@@ -170,9 +253,9 @@ bool Square::collidesWith(const GeometricObject *other) const
                isPointInCircle(other->getX(), other->getY(), getX() - size/2, getY() + size/2, other->getRadius()) ||
                isPointInCircle(other->getX(), other->getY(), getX() + size/2, getY() + size/2, other->getRadius()) ||
                isPointInRect(other->getX(), other->getY(), getX() - size/2 - other->getRadius(),
-                             getY() - size/2, size + other->getRadius(), size) ||
+                             getY() - size/2, size + other->getRadius()*2, size) ||
                isPointInRect(other->getX(), other->getY(), getX() - size/2,
-                             getY() - size/2 - other->getRadius(), size, size + other->getRadius());
+                             getY() - size/2 - other->getRadius(), size, size + other->getRadius()*2);
     case Type::square:
         {
             auto *o = static_cast<const Square*>(other);
@@ -190,8 +273,8 @@ bool Square::collidesWith(const GeometricObject *other) const
 Polygon::Polygon(int numVertices)
 {
     type = Type::polygon;
-    setAngle(0);
     vertices = static_array<Point>(numVertices);
+    setAngle(0);
 }
 Polygon::Polygon(double x, double y, std::initializer_list<Point> points): GeometricObject(x, y)
 {
@@ -207,7 +290,7 @@ Polygon::Polygon(double x, double y, static_array<Point> &points): GeometricObje
     vertices = points;
     computeRadius();
 }
-Polygon::Polygon(const Polygon &other): GeometricObject(other.getX(), other.getY())
+__attribute__((hot)) Polygon::Polygon(const Polygon &other): GeometricObject(other.getX(), other.getY())
 {
     type = Type::polygon;
     setAngle(0);
@@ -216,7 +299,7 @@ Polygon::Polygon(const Polygon &other): GeometricObject(other.getX(), other.getY
     setRadius(other.radius);
     vertices = other.vertices;
 }
-void Polygon::computeRadius()
+void __attribute__((hot)) Polygon::computeRadius()
 {
     radius = 0;
     for(auto &i: vertices)
@@ -228,26 +311,25 @@ size_t Polygon::getNumVertices()
 {
     return vertices.size();
 }
-void Polygon::setRadius(double radius)
+void __attribute__((hot)) Polygon::setRadius(double radius)
 {
     this->radius = radius;
 }
-double Polygon::getRadius() const
+double __attribute__((hot)) Polygon::getRadius() const
 {
     return radius;
 }
 Polygon::operator Polygon() const
 {
-    print_warning("Polygon::operator Polygon() should never be called");
-    return Polygon(*this); //avoid the compiler warning and if we ever actually want to do it note we have to do a deepcopy because of the unique_ptr
+    return *this;
 }
-static inline double cp(double x1, double y1, double x2, double y2)
+static inline __attribute__((hot)) double cp(double x1, double y1, double x2, double y2)
 {
     return x1 * y2 - x2 * y1;
 }
-//WARNING: MAY BE UNPORTABLE!!
+//CODE_WARNING: may be unportable
 #define TO_ULL(x) (*reinterpret_cast<unsigned long long*>(&x))
-static inline bool segmentsIntersect(Point a1, Point a2, Point b1, Point b2)
+static inline bool __attribute__((hot)) segmentsIntersect(Point a1, Point a2, Point b1, Point b2)
 {
     //points are implicitly converted to 2D geometric vectors
     //might not work for some edge cases which can probably be ignored because they will have a minimal effect due to the nature of floating points
@@ -261,12 +343,12 @@ static inline bool segmentsIntersect(Point a1, Point a2, Point b1, Point b2)
     //return sign(c1)==sign(c2) && sign(c3)==sign(c4);
     return ((1ull<<63) & ((TO_ULL(c1) ^ ~TO_ULL(c2)) & (TO_ULL(c3) ^ ~TO_ULL(c4))));
 }
-bool Polygon::collidesWithPolygon(const Polygon &other) const
+bool __attribute__((hot)) Polygon::collidesWithPolygon(const Polygon &other) const
 {
     if(square(getRadius() + other.getRadius()) < square(getX() - other.getX()) + square(getY() - other.getY())) //bounding circles don't overlap
         return false;
     //check if any edges intersect
-    static static_array<Point> v1(11), v2(11); //allocating it every time would be costly. Assume that no polygon has more than 10 vertices.
+    static static_array<Point> v1(MAX_VERT_IN_POLYGON+1), v2(MAX_VERT_IN_POLYGON+1); //allocating it every time would be costly. Assume that no polygon has more than 12 vertices.
     for(size_t i=0; i<vertices.size(); i++) //vertices.get() is used as a read only operation to access a Point
     {
         v1[i] = vertices.get(i).getPos(getX(), getY(), getAngle());
@@ -290,30 +372,46 @@ bool Polygon::collidesWithPolygon(const Polygon &other) const
             }
         }
     }
-    return false;
     //also check if one is inside the other with ray tracing
-    int intersectionCount = 0;
+    return false;
+    //CODE_WARNING: it's assumed that one polygon will never be inside another (which is true if time is simulated continuously)
+    //disabling ray tracing saves a bit of CPU but could cause issues with extremely small, fast things
+    /*int intersectionCount = 0;
     Point a = v2.get(0);
-    Point b(a.x + 1e9, a.y + 1); //the slope of 1e-9 makes it probable that the ray won't cross any vertices
+    Point b(a.x + INF, a.y + 1); //the slope of 1e-9 makes it probable that the ray won't cross any vertices
     for(size_t i=0; i<vertices.size(); i++)
     {
         if(segmentsIntersect(a, b, v1.get(i), v1.get(i+1)))
             intersectionCount++;
     }
-    return intersectionCount%2 == 1;
+    if(intersectionCount%2 == 1)
+        return true;
+    intersectionCount = 0;
+    a = v1.get(0);
+    b = Point(b.x + INF, b.y + 1);
+    for(size_t i=0; i<other.vertices.size(); i++)
+    {
+        if(segmentsIntersect(a, b, v2.get(i), v2.get(i+1)))
+            intersectionCount++;
+    }
+    return intersectionCount%2 == 1;*/
 }
-bool Polygon::collidesWith(const GeometricObject *other) const
+bool __attribute__((hot)) Polygon::collidesWith(const GeometricObject *other) const
 {
     switch(other->type)
     {
     case Type::square:
-    {
+        {
+            /*println("OK");
+            println(to_str(other->getRadius()));*/
             Polygon p = (Polygon)(*other);
             return collidesWithPolygon(p);
         }
         break;
     case Type::circle:
         {
+            /*println("OK");
+            println(to_str(other->getRadius()));*/
             Polygon p = (Polygon)(*other);
             return collidesWithPolygon(p);
         }
@@ -324,4 +422,38 @@ bool Polygon::collidesWith(const GeometricObject *other) const
         print_error("GeometricObject has unknown type " + to_str((int)other->type));
     }
     return false; //just to avoid the compiler warning
+}
+//other funcs
+std::string to_hex_len8(unsigned v)
+{
+    std::string res = "0x";
+    for(int i=28; i>=0; i-=4)
+    {
+        int t = ((v>>i) & 0xf);
+        if(t < 10)
+            res += '0' + t;
+        else res += 'A' + t-10;
+    }
+    return res;
+}
+std::string to_hex(unsigned v)
+{
+    std::string res;
+    while(v > 0)
+    {
+        int t = v & 0xf;
+        if(t < 10)
+            res += '0' + t;
+        else res += 'A' + t-10;
+        v >>= 4;
+    }
+    res += "x0";
+    std::reverse(res.begin(), res.end());
+    return res;
+}
+void flip(double &v)
+{
+    if(v == 0)
+        v = 1;
+    else v = 0;
 }

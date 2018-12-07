@@ -21,6 +21,7 @@
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL_mixer.h>
+static const int SDL_BASE_NOT_SET = ((int)(1e9 + 23001));
 static SDL_Renderer *renderer = NULL;
 static SDL_Window *window = NULL;
 SDL_Event input;
@@ -44,8 +45,8 @@ namespace sdl_settings
     bool vsync = true;
     bool acceleratedRenderer = true;
     const static int WINDOW_POS_NOT_SET = -1e9;
+    int musicVolume = MIX_MAX_VOLUME, sfxVolume = MIX_MAX_VOLUME;
     int WINDOW_W = 2500, WINDOW_H = 1500, WINDOW_X = WINDOW_POS_NOT_SET, WINDOW_Y = WINDOW_POS_NOT_SET;
-    int volume = 0;
     int renderScaleQuality = 2;
     int fontQuality = 1;
     bool textBlended = true;
@@ -54,6 +55,7 @@ namespace sdl_settings
     bool IS_FULLSCREEN = false; //overrides WINDOW_W and WINDOW_H
     int FPS_CAP = 300; //FPS cap (300 is essentially uncapped)
     int TEXT_TEXTURE_CACHE_TIME = 1100; //number of milliseconds of being unused after a which a text SDL_Texture is destroyed
+    double textSizeMult = 1;
     static std::queue<int> frameTimeStamp;
     //code for reading config
     static const char *const FOUT_FILE_NAME = "sdl_base_config.txt";
@@ -69,10 +71,11 @@ namespace sdl_settings
         vals["FPS_CAP"] = std::make_pair("int", &FPS_CAP);
         vals["HORIZONTAL_RESOLUTION"] = std::make_pair("int", &WINDOW_W);
         vals["VERTICAL_RESOLUTION"] = std::make_pair("int", &WINDOW_H);
+        vals["SFX_VOLUME"] = std::make_pair("int", &sfxVolume);
+        vals["MUSIC_VOLUME"] = std::make_pair("int", &musicVolume);
         vals["WINDOW_X"] = std::make_pair("int", &WINDOW_X);
         vals["WINDOW_Y"] = std::make_pair("int", &WINDOW_Y);
         vals["SHOW_FPS"] = std::make_pair("bool", &showFPS);
-        vals["AUDIO_VOLUME"] = std::make_pair("int", &volume);
         vals["FONT_QUALITY"] = std::make_pair("int", &fontQuality);
         vals["RENDER_SCALE_QUALITY"] = std::make_pair("int", &renderScaleQuality);
         vals["TEXT_TEXTURE_CACHE_TIME"] = std::make_pair("int", &TEXT_TEXTURE_CACHE_TIME);
@@ -81,6 +84,7 @@ namespace sdl_settings
         vals["G_GAMMA"] = std::make_pair("double", &Ggamma);
         vals["B_GAMMA"] = std::make_pair("double", &Bgamma);
         vals["BRIGHTNESS"] = std::make_pair("double", &brightness);
+        vals["TEXT_SIZE"] = std::make_pair("double", &textSizeMult);
     }
     void output_config()
     {
@@ -88,8 +92,23 @@ namespace sdl_settings
             init_config();
         std::remove(FOUT_FILE_NAME);
         std::ofstream fout(FOUT_FILE_NAME);
-        SDL_GetWindowSize(getWindow(), &WINDOW_W, &WINDOW_H);
-        SDL_GetWindowPosition(getWindow(), &WINDOW_X, &WINDOW_Y);
+        if(WINDOW_W > 1e9) //ok reset things
+        {
+            WINDOW_X = getDisplayW() * 0.1;
+            WINDOW_Y = getDisplayH() * 0.1;
+            WINDOW_W = getDisplayW() * 0.8;
+            WINDOW_H = getDisplayH() * 0.8;
+        }
+        else
+        {
+            SDL_GetWindowSize(getWindow(), &WINDOW_W, &WINDOW_H);
+            SDL_GetWindowPosition(getWindow(), &WINDOW_X, &WINDOW_Y);
+        }
+        if(IS_FULLSCREEN && WINDOW_X==0 && WINDOW_Y==0)
+        {
+            WINDOW_X = SDL_BASE_NOT_SET;
+            WINDOW_Y = SDL_BASE_NOT_SET;
+        }
         for(auto &i: vals)
         {
             if(i.second.first == "int")
@@ -143,7 +162,7 @@ This prints a string to stdout
 void print(std::string s)
 {
     //stdoutMutex.lock();
-    std::puts(s.c_str());
+    std::puts(("[" + seconds_to_str(getTicksS()) + "]" + s).c_str());
     std::fflush(stdout);
     //stdoutMutex.unlock();
 }
@@ -153,7 +172,7 @@ This prints a string and appends a newline to stdout
 void println(std::string s)
 {
     //stdoutMutex.lock();
-    std::puts(s.c_str());
+    std::puts(("[" + seconds_to_str(getTicksS()) + "]" + s).c_str());
     std::fflush(stdout);
     //stdoutMutex.unlock();
 }
@@ -231,6 +250,13 @@ std::string seconds_to_str_no_h(int t)
     return res;
 }
 /**
+returns either -1 or 1 with 50% probability
+*/
+int randsign()
+{
+    return 1 - 2 * randz(0, 1);
+}
+/**
 Generates a random integer from 0 to RANDUZ_MAX using std::mt19937
 */
 int randuz()
@@ -258,7 +284,7 @@ Returns a random integer from v1 to v2
 */
 int randz(int v1, int v2)
 {
-    double diff = v2 - v1 + 0.9999;
+    double diff = v2 - v1 + 0.99999999;
     return randf()*diff + v1;
 }
 /**
@@ -300,7 +326,7 @@ Takes in a double and returns a formatted string to the specified number of deci
 std::string format_to_places(double x, int places)
 {
     std::string res = to_str(round(x, places));
-    for(int i=0; i<res.size(); i++)
+    for(size_t i=0; i<res.size(); i++)
     {
         if(res[i] == '.')
         {
@@ -315,17 +341,6 @@ std::string format_to_places(double x, int places)
     return res;
 }
 //End non SDL functions
-/**
-Sets the volume of SDL_Mixer
-*/
-void setVolume(int vol)
-{
-    using namespace sdl_settings;
-    volume = vol;
-    volume = std::max(volume, 0);
-    volume = std::min(volume, SDL_MIX_MAXVOLUME);
-    Mix_VolumeMusic(volume);
-}
 /**
 Returns a pointer to the current SDL_Window
 */
@@ -343,15 +358,20 @@ static void createWindow(const char *name)
         SDL_DestroyWindow(window);
     if(renderer)
         SDL_DestroyRenderer(renderer);
-    if(WINDOW_X==WINDOW_POS_NOT_SET || WINDOW_Y==WINDOW_POS_NOT_SET)
-        window = SDL_CreateWindow(name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_W, WINDOW_H,
-                                   SDL_WINDOW_SHOWN | (SDL_WINDOW_FULLSCREEN*IS_FULLSCREEN) | SDL_WINDOW_RESIZABLE);
+    if(IS_FULLSCREEN || WINDOW_X==WINDOW_POS_NOT_SET || WINDOW_Y==WINDOW_POS_NOT_SET)
+    {
+        window = SDL_CreateWindow(name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, getDisplayW(), getDisplayH(),
+                                   SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN | SDL_WINDOW_RESIZABLE);
+        IS_FULLSCREEN = true;
+    }
+        /*window = SDL_CreateWindow(name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, getDisplayW()*0.8, getDisplayH()*0.8,
+                                   SDL_WINDOW_SHOWN | (SDL_WINDOW_FULLSCREEN*(int)IS_FULLSCREEN) | SDL_WINDOW_RESIZABLE);*/
     else window = SDL_CreateWindow(name, WINDOW_X, WINDOW_Y, WINDOW_W, WINDOW_H,
-                                    SDL_WINDOW_SHOWN | (SDL_WINDOW_FULLSCREEN*IS_FULLSCREEN) | SDL_WINDOW_RESIZABLE);
+                                    SDL_WINDOW_SHOWN | (SDL_WINDOW_FULLSCREEN*(int)IS_FULLSCREEN) | SDL_WINDOW_RESIZABLE);
     renderer = SDL_CreateRenderer(window, -1, (SDL_RENDERER_ACCELERATED*acceleratedRenderer) | (SDL_RENDERER_PRESENTVSYNC*vsync));
-    if(IS_FULLSCREEN)
+    /*if(IS_FULLSCREEN)
         SDL_RenderSetLogicalSize(renderer, WINDOW_W, WINDOW_H);
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, to_str(renderScaleQuality).c_str());
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, to_str(renderScaleQuality).c_str());*/
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 }
 /**
@@ -408,9 +428,13 @@ void initSDL(const char *name)
         srand(time(NULL));
         if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0)
             println((std::string)"SDL_GetError(): " + SDL_GetError());
+        if(Mix_Init(MIX_INIT_MP3 | MIX_INIT_FLAC))
+            println((std::string)"Mix_GetError(): " + Mix_GetError());
         if(Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096) < 0)
             println((std::string)"Mix_GetError(): " + Mix_GetError());
-        setVolume(sdl_settings::volume);
+        Mix_Volume(-1, sfxVolume);
+        Mix_VolumeMusic(musicVolume);
+        Mix_AllocateChannels(32);
         if(TTF_Init() < 0)
             println((std::string)"TTF_GetError(): " + TTF_GetError());
         if(IMG_Init(IMG_INIT_PNG | IMG_INIT_JPG) < 0)
@@ -565,14 +589,14 @@ void drawText(std::string text, int x, int y, int s, uint8_t r, uint8_t g, uint8
         __t = createText(text, s, r, g, b);
         text_textures[tInfo] = std::make_pair(getTicks(), __t);
     }
-    SDL_Rect dst{x, y, text.size() * s/2, s};
+    SDL_Rect dst{x, y, (int)(text.size() * s/2), s};
     SDL_SetTextureAlphaMod(__t, a);
     renderCopy(__t, &dst);
 }
 /**
 Draws wrapped text on the window, and breaks won't occur in the middle of words. The SDL_Texture is cached for TEXT_TEXTURE_CACHE_TIME.
 */
-int drawMultilineTextUnbroken(std::string text, int x, int y, int w, int s, uint8_t r, uint8_t g, uint8_t b)
+int drawMultilineTextUnbroken(std::string text, int x, int y, int w, int s, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     size_t maxLength = 2*w / s;
     int lines = 0;
@@ -604,16 +628,65 @@ int drawMultilineTextUnbroken(std::string text, int x, int y, int w, int s, uint
                 text.erase(0, l+1);
             }
         }
-        drawText(cur, x, y, s, r, g, b);
+        drawText(cur, x, y, s, r, g, b, a);
         y += s;
         lines++;
     }
     return lines;
 }
 /**
+Fills in xpos and ypos with the x and y position of the last character drawn from the drawMultilineTextUnbroken function.
+*/
+void getMultilineTextUnbrokenInfo(std::string text, int w, int s, std::vector<std::string> &ltext)
+{
+    size_t maxLength = 2*w / s;
+    int lines = 0;
+    while(text.size())
+    {
+        std::string cur;
+        for(size_t i=0; i<std::min(maxLength, text.size()); i++)
+        {
+            if(text[i] == '\n')
+            {
+                cur = text.substr(0, i);
+                text.erase(0, i+1);
+                break;
+            }
+        }
+        if(cur.size() == 0)
+        {
+            if(text.size() <= maxLength)
+            {
+                cur = text;
+                text.clear();
+            }
+            else
+            {
+                int l = maxLength;
+                while(text[l] != ' ')
+                    l--;
+                cur = text.substr(0, l);
+                text.erase(0, l+1);
+            }
+        }
+        ltext.push_back(cur);
+        /*if(xpos != NULL) //we could optimize this but whatever
+            *xpos = (int)cur.size();
+        if(ypos != NULL)
+            *ypos = lines;
+        if(xpos!=NULL && *xpos == (int)maxLength)
+        {
+            *xpos = 0;
+            if(ypos != NULL)
+                (*ypos)++;
+        }*/
+        lines++;
+    }
+}
+/**
 Draws wrapped text on the window. The SDL_Texture is cached for TEXT_TEXTURE_CACHE_TIME.
 */
-int drawMultilineText(std::string text, int x, int y, int w, int s, uint8_t r, uint8_t g, uint8_t b)
+int drawMultilineText(std::string text, int x, int y, int w, int s, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     size_t maxLength = 2*w / s;
     int lines = 0;
@@ -642,11 +715,56 @@ int drawMultilineText(std::string text, int x, int y, int w, int s, uint8_t r, u
                 text.erase(0, maxLength);
             }
         }
-        drawText(cur, x, y, s, r, g, b);
+        drawText(cur, x, y, s, r, g, b, a);
         y += s;
         lines++;
     }
     return lines;
+}
+/**
+Fills in xpos and ypos with the x and y position of the last character drawn from the drawMultilineText function.
+*/
+void getMultilineTextPos(std::string text, int w, int s, int *xpos, int *ypos)
+{
+    size_t maxLength = 2*w / s;
+    int lines = 0;
+    while(text.size())
+    {
+        std::string cur;
+        for(size_t i=0; i<std::min(maxLength, text.size()); i++)
+        {
+            if(text[i] == '\n')
+            {
+                cur = text.substr(0, i);
+                text.erase(0, i+1);
+                break;
+            }
+        }
+        if(cur.size() == 0)
+        {
+            if(text.size() <= maxLength)
+            {
+                cur = text;
+                text.clear();
+            }
+            else
+            {
+                cur = text.substr(0, maxLength);
+                text.erase(0, maxLength);
+            }
+        }
+        if(xpos != NULL) //we could optimize this but whatever, also note the wrapping
+            *xpos = (int)cur.size();
+        if(ypos != NULL)
+            *ypos = lines;
+        if(xpos!=NULL && *xpos == (int)maxLength)
+        {
+            *xpos = 0;
+            if(ypos != NULL)
+                (*ypos)++;
+        }
+        lines++;
+    }
 }
 /**
 Returns how many times a given text will be wrapped if it is drawn
@@ -766,7 +884,10 @@ SDL_Texture *loadTexture(const char *name, uint8_t r, uint8_t g, uint8_t b)
 {
     SDL_Surface *s = IMG_Load(name);
     if(s == NULL)
-        println("SDL_GetError(): " + (std::string)SDL_GetError());
+    {
+        println("IMG_GetError(): " + (std::string)SDL_GetError());
+        return NULL;
+    }
     SDL_SetColorKey(s, SDL_TRUE, SDL_MapRGB(s->format, r, g, b));
     SDL_Texture *t = SDL_CreateTextureFromSurface(renderer, s);
     SDL_FreeSurface(s);
@@ -780,7 +901,7 @@ SDL_Texture *loadTexture(const char *name)
 {
     SDL_Surface *s = IMG_Load(name);
     if(s == NULL)
-        println("SDL_GetError(): " + (std::string)SDL_GetError());
+        println("IMG_GetError(): " + (std::string)SDL_GetError());
     SDL_Texture *t = SDL_CreateTextureFromSurface(renderer, s);
     SDL_FreeSurface(s);
     SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
@@ -1036,7 +1157,7 @@ void updateScreen()
     frameLength = curTick - prevTick;
     prevTick = curTick;
     SDL_GetMouseState(&mouse_x, &mouse_y);
-    SDL_RenderPresent(renderer);
+    SDL_RenderPresent(getRenderer());
 }
 /**
 Returns the window's width
@@ -1055,6 +1176,13 @@ int getWindowH()
     int H;
     SDL_GetWindowSize(getWindow(), NULL, &H);
     return H;
+}
+/**
+Returns the window's area in pixels
+*/
+int getWindowArea()
+{
+    return getWindowW() * getWindowH();
 }
 /**
 Returns the window's X position
@@ -1079,7 +1207,7 @@ Returns a font size where lower is smaller and 0 is medium size
 */
 int getFontSize(double sz)
 {
-    return std::pow(2.0, sz) * getWindowW() * getWindowH() / 100000;
+    return sdl_settings::textSizeMult * std::pow(2.0, sz) * std::sqrt(getWindowW() * getWindowH()) / 40;
 }
 /**
 Gets the width and height of a block of text
@@ -1104,4 +1232,110 @@ Checks if a mouse button is pressed
 bool isMouseButtonPressed(int button)
 {
     return SDL_GetMouseState(NULL, NULL) & SDL_BUTTON(button);
+}
+/**
+Sets the renderer target
+*/
+bool setRenderTarget(SDL_Texture *t)
+{
+    return SDL_SetRenderTarget(renderer, t);
+}
+/**
+Returns the intermediate texture that effectively represents the display
+*/
+SDL_Texture *getScreenTexture()
+{
+    int w = getWindowW(), h = getWindowH();
+    SDL_Surface *s = SDL_CreateRGBSurface(0, w, h, 32, 0xff000000, 0x00ff0000, 0x0000ff00, 0x000000ff);
+    SDL_RenderReadPixels(renderer, NULL, SDL_PIXELFORMAT_RGBA8888, s->pixels, s->pitch);
+    SDL_Texture *t = SDL_CreateTextureFromSurface(renderer, s);
+    SDL_FreeSurface(s);
+    return t;
+}
+/**
+Returns the display width
+*/
+int getDisplayW()
+{
+    SDL_DisplayMode d;
+    SDL_GetCurrentDisplayMode(0, &d);
+    return d.w;
+}
+/**
+Returns the display height
+*/
+int getDisplayH()
+{
+    SDL_DisplayMode d;
+    SDL_GetCurrentDisplayMode(0, &d);
+    return d.h;
+}
+/**
+Returns the display refresh rate
+*/
+int getDisplayHertz()
+{
+    SDL_DisplayMode d;
+    SDL_GetCurrentDisplayMode(0, &d);
+    if(d.refresh_rate == 0) //assume that it's 60 if it's unavailable
+        return 60;
+    return d.refresh_rate;
+}
+/**
+Changes the base text size returned by getFontSize
+*/
+void setTextSizeMult(double m)
+{
+    sdl_settings::textSizeMult = m;
+}
+/**
+Returns the current FPS
+*/
+int getFPS()
+{
+    return sdl_settings::frameTimeStamp.size();
+}
+/**
+Loads a Mix_Chunk* from a file and checks for errors
+*/
+Mix_Chunk *loadMixChunk(const char *name)
+{
+    Mix_Chunk *t = Mix_LoadWAV(name);
+    if(t == nullptr)
+    {
+        println("Error when loading audio file " + to_str(name));
+        println("Mix_GetError(): " + to_str(Mix_GetError()));
+    }
+    return t;
+}
+/**
+Loads a Mix_Music* from a file and checks for errors
+*/
+Mix_Music *loadMixMusic(const char *name)
+{
+    Mix_Music *t = Mix_LoadMUS(name);
+    if(t == nullptr)
+    {
+        println("Error when loading audio file " + to_str(name));
+        println("Mix_GetError(): " + to_str(Mix_GetError()));
+    }
+    return t;
+}
+/**
+Sets the music (Mix_Music) volume
+*/
+void setMusicVolume(int v)
+{
+    using namespace sdl_settings;
+    musicVolume = std::min(MIX_MAX_VOLUME, std::max(0, v));
+    Mix_VolumeMusic(musicVolume);
+}
+/**
+Sets sfx (Mix_Chunk) volume
+*/
+void setSfxVolume(int v)
+{
+    using namespace sdl_settings;
+    sfxVolume = std::min(MIX_MAX_VOLUME, std::max(0, v));
+    Mix_Volume(-1, sfxVolume);
 }

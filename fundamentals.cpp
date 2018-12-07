@@ -2,7 +2,6 @@
 #include <numeric>
 #include <algorithm>
 #include <string>
-#ifdef __GNUC__
 namespace std
 {
     size_t hash<pii>::operator()(const pii &v) const
@@ -10,18 +9,20 @@ namespace std
         return hash<int>()(v.A) + 17 * hash<int>()(v.B);
     }
 }
-#endif // __GNUC__
 DisjointSet::DisjointSet(int sz)
 {
-    this->sz = sz;
-    p.resize(sz);
-    d.resize(sz);
+    p = static_array<int>(sz);
+    s = static_array<int>(sz);
     std::iota(p.begin(), p.end(), 0);
-    std::fill(d.begin(), d.end(), 0);
+    std::fill(s.begin(), s.end(), 1);
 }
 int DisjointSet::size() const
 {
-    return sz;
+    return p.size();
+}
+int DisjointSet::size_of_component(int x)
+{
+    return s[getp(x)];
 }
 void DisjointSet::combine(int a, int b)
 {
@@ -29,14 +30,15 @@ void DisjointSet::combine(int a, int b)
     b = getp(b);
     if(a == b)
         return;
-    if(d[a] < d[b])
-        p[a] = b;
-    else if(d[b] < d[a])
-        p[b] = a;
-    else
+    if(s[a] < s[b])
     {
         p[a] = b;
-        d[b]++;
+        s[b] += s[a];
+    }
+    else
+    {
+        p[b] = a;
+        s[a] += s[b];
     }
 }
 int DisjointSet::getp(int x)

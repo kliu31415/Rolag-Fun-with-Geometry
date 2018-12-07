@@ -1,7 +1,10 @@
-//A simple SDL2 wrapper by Kevin Liu
+/*A simple SDL2 wrapper by Kevin Liu
+*/
 #pragma once
 #include <string>
+#include <vector>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_mixer.h>
 #ifndef SDL_main
 #undef main
 #endif
@@ -11,8 +14,8 @@ namespace sdl_settings
 {
     extern bool lowTextureQuality, vsync, acceleratedRenderer, textBlended;
     extern int WINDOW_W, WINDOW_H, WINDOW_X, WINDOW_Y;
-    extern int volume, renderScaleQuality, fontQuality;
-    extern double Rgamma, Ggamma, Bgamma, brightness;
+    extern int renderScaleQuality, fontQuality, musicVolume, sfxVolume;
+    extern double Rgamma, Ggamma, Bgamma, brightness, textSizeMult;
     extern bool showFPS, IS_FULLSCREEN; //overrides WINDOW_W and WINDOW_H
     extern int FPS_CAP; //FPS cap (300 is essentially uncapped)
     extern int TEXT_SDL_Texture_CACHE_TIME;
@@ -46,9 +49,32 @@ Converts an integer number of seconds to time in the form M:SS or M:SS
 */
 std::string seconds_to_str_no_h(int t);
 /**
+returns either -1 or 1 with 50% probability
+*/
+int randsign();
+/**
 Generates a random integer from 0 to RANDUZ_MAX using std::mt19937
 */
 int randuz();
+/**
+Generates random numbers using randuz(). Can be passed to stdlib functions.
+*/
+struct generateRandZ
+{
+    typedef size_t result_type;
+    static size_t min()
+    {
+        return 0;
+    }
+    static size_t max()
+    {
+        return RANDUZ_MAX;
+    }
+    size_t operator()()
+    {
+        return randuz();
+    }
+};
 /**
 Generates a random integer from 0 to m-1
 */
@@ -81,10 +107,6 @@ double getTicksS();
 Takes in a double and returns a formatted string to the specified number of decimal places
 */
 std::string format_to_places(double x, int places);
-/**
-Sets the volume of SDL_Mixer
-*/
-void setVolume(int vol);
 /**
 Returns a pointer to the current SDL_Window
 */
@@ -152,11 +174,19 @@ void drawText(std::string text, int x, int y, int s, uint8_t r=0, uint8_t g=0, u
 /**
 Draws wrapped text on the window, and breaks won't occur in the middle of words. The SDL_Texture is cached for TEXT_TEXTURE_CACHE_TIME.
 */
-int drawMultilineTextUnbroken(std::string text, int x, int y, int w, int s, uint8_t r=0, uint8_t g=0, uint8_t b=0);
+int drawMultilineTextUnbroken(std::string text, int x, int y, int w, int s, uint8_t r=0, uint8_t g=0, uint8_t b=0, uint8_t a=255);
+/**
+Fills in xpos and ypos with the x and y position of the character AFTER the last character drawn from the drawMultilineTextUnbroken function.
+*/
+void getMultilineTextUnbrokenInfo(std::string text, int w, int s, std::vector<std::string> &lines);
 /**
 Draws wrapped text on the window. The SDL_Texture is cached for TEXT_TEXTURE_CACHE_TIME.
 */
-int drawMultilineText(std::string text, int x, int y, int w, int s, uint8_t r=0, uint8_t g=0, uint8_t b=0);
+int drawMultilineText(std::string text, int x, int y, int w, int s, uint8_t r=0, uint8_t g=0, uint8_t b=0, uint8_t a=255);
+/**
+Fills in xpos and ypos with the x and y position of the last character drawn from the drawMultilineText function.
+*/
+void getMultilineTextPos(std::string text, int w, int s, int *xpos, int *ypos);
 /**
 Returns how many times a given text will be wrapped if it is drawn
 */
@@ -326,6 +356,10 @@ Returns the window's height
 */
 int getWindowH();
 /**
+Returns the window's area in pixels
+*/
+int getWindowArea();
+/**
 Returns the window's X position
 */
 int getWindowX();
@@ -345,3 +379,47 @@ void getTextSize(std::string text, int sz, int *w, int *h);
 Checks if a mouse button is pressed
 */
 bool isMouseButtonPressed(int button);
+/**
+Sets the renderer target.
+*/
+bool setRenderTarget(SDL_Texture *t);
+/**
+Returns the intermediate texture that effectively represents the display
+*/
+SDL_Texture *getScreenTexture();
+/**
+Returns the display width
+*/
+int getDisplayW();
+/**
+Returns the display height
+*/
+int getDisplayH();
+/**
+Returns the display refresh rate (or 60 by default if the function fails)
+*/
+int getDisplayHertz();
+/**
+Changes the base text size returned by getFontSize
+*/
+void setTextSizeMult(double m);
+/**
+Returns the current FPS
+*/
+int getFPS();
+/**
+Loads a Mix_Chunk* from a file and checks for errors
+*/
+Mix_Chunk *loadMixChunk(const char *name);
+/**
+Loads a Mix_Music* from a file and checks for errors
+*/
+Mix_Music *loadMixMusic(const char *name);
+/**
+Sets the music (Mix_Music) volume
+*/
+void setMusicVolume(int v);
+/**
+Sets sfx (Mix_Chunk) volume
+*/
+void setSfxVolume(int v);

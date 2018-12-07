@@ -4,7 +4,10 @@
 #include <initializer_list>
 #include "fundamentals.h"
 const static double EPSILON = 1e-10;
+const int MAX_VERT_IN_POLYGON = 12; //IMPORTANT! You must change this if you want polygons with more vertices or the program will crash!!
 class GameMap;
+class GenericMapRoom;
+enum class MapTile: int;
 struct Polygon;
 class GeometricObject
 {
@@ -16,16 +19,20 @@ protected:
 public:
     enum class Type{circle, square, polygon} type;
     virtual bool collidesWith(const GeometricObject *other) const = 0;
-    bool collidesWithTerrain(const GameMap &game_map) const;
+    bool collidesWithTerrain(const GenericMapRoom &room) const;
+    bool collidesWithUnflyableTile(const GenericMapRoom &room) const;
+    bool collidesWithTile(const GenericMapRoom &room, MapTile type) const;
+    bool handleCollisionsWithCollapsingTiles(GameMap &game_map) const;
     virtual double getRadius() const = 0; //returns the maximum distance from the center of rotation to any vertex
-    inline double getX() const {return x;}
-    inline double getY() const {return y;}
-    inline void setX(double x) {this->x = x;}
-    inline void setY(double y) {this->y = y;}
-    inline double getAngle() const {return angle;}
-    inline void setAngle(double angle) {this->angle = angle;}
+    double __attribute__((always_inline)) getX() const {return x;}
+    double __attribute__((always_inline)) getY() const {return y;}
+    void __attribute__((always_inline)) setX(double x) {this->x = x;}
+    void __attribute__((always_inline)) setY(double y) {this->y = y;}
+    double __attribute__((always_inline)) getAngle() const {return angle;}
+    void __attribute__((always_inline)) setAngle(double angle) {this->angle = angle;}
     double centerDist(const GeometricObject *other) const;
     virtual operator Polygon() const = 0;
+    void drawHitbox(double cameraX, double cameraY) const;
 };
 
 class Circle: public GeometricObject //cannot be rotated
@@ -77,15 +84,19 @@ public:
     operator Polygon() const override;
     void computeRadius();
 };
-
-template<class T> inline T sign(T v)
+template<class T> inline __attribute__((always_inline)) T sign(T v)
 {
     if(v < 0)
         return -1;
     return v > 0;
 }
-template<class T> inline T square(T v)
+template<class T> inline __attribute__((always_inline)) T square(T v)
 {
     return v*v;
 }
 void normToHypot(double &x, double &y, double z);
+std::string to_hex(unsigned v);
+std::string to_hex(int v) = delete;
+std::string to_hex_len8(unsigned v);
+std::string to_hex_len8(int v) = delete;
+void flip(double &v);

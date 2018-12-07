@@ -15,4 +15,7 @@ public:
     static void init();
     void moveToNewPosition(GameMap &game_map, double dX, double dY);
     void handleInput(GameState &game_state);
+    void handleCollisionsWithHurtTiles(GameState &game_state); //and collapsing tiles too
+    bool isOnPortal(GameState &game_state) const;
+    void applyFirstTimeItemEffects(GameState &game_state, Item::Name name);
 };
