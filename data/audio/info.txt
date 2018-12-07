@@ -1,0 +1,32 @@
+main_menu.mp3: Miami Nights, Kevin MacLeod, incompetech.com, CC-BY 3.0
+
+FLOOR THEMES:
+floor_1.mp3: Undaunted, Kevin MacLeod, incompetech.com, CC-BY 3.0
+floor_3.mp3: Energy Transmission, Purple Planet, purple-planet.com, CC-BY 3.0
+floor_5.mp3: Twisting, Kevin MacLeod, incompetech.com, CC-BY 3.0
+floor_7.mp3: Hybrid Tech Theme, Purple Planet, purple-planet.com, CC-BY 3.0
+floor_13.mp3: Inner Sanctum, Kevin MacLeod, incompetech.com, CC-BY 3.0
+floor_15.mp3: Wretched Destroyer, Kevin MacLeod, incompetech.com, CC-BY 3.0
+floor_18.mp3, Battle Plan, Purplet Planet, purple-planet.com, CC-BY 3.0
+
+WEAPON SOUNDS:
+shot_blowgun.wav: mtheodp, Biblioteca, freesound.org, CC0
+shot_bromine_bow.wav: Hanbaal, 20 pound bow, freesound.org, CC0
+shot_cadmium_crossbow.mp3: saturdaysoundguy, Slingshots and Longbows, freesound.org, CC0
+shot_device_wh722.wav: steffcaffrey, happy cat short whirr, freesound.org, CC0
+shot_flamethrower.wav: Breviceps, Blast + Flamethrower, freesound.org, CC0
+shot_gamma_ray_gun.wav: melissapons, scifi_short_error, freesound.org, CC0
+shot_generic_shotgun.wav: LeMudCrab, Shotgun Shot, freesound.org, CC0
+shot_hunting_rifle.wav: Xenonn, Layered Gunshot 0, freesound.org, CC0
+shot_laser.wav: fins, laser, freesound.org, CC0
+shot_p89.wav: haydensayshi123, Barreta M9, freesound.org, CC0
+shot_paintball_gun.wav: cbakos, Spray Paint, freesound.org, CC0
+shot_pi.wav: Brokenphono, Gunshoot_002, freesound.org, CC0
+shot_ping_pong_machine.wav: goncalo95, ping pong pan, freesound.org, CC0
+shot_poofy_pistol.wav: Bird_man, Gun Shot, freesound.org, CC0
+shot_railgun.wav: pockroozer, Railgun 44100, freesound.org, CC0
+shot_sawedon.wav: LeMudCrab, Sniper Shot, freesound.org, CC0
+shot_shotgun.wav: Marregheriti, shotgun, freesound.org, CC0
+shot_sss.wav: Xennon, layered shotgun, freesound.org, CC0
+shot_unbranded_sniper_rifle.wav: Xenonn, Layered Gunshot 1, freesound.org, CC0
+shot_water_gun.wav: Mafon2, Water Click, freesound.org, CC0
